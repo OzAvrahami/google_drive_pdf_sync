@@ -205,10 +205,15 @@ Extensible architecture
 
 Feel free to fork and extend the project.
 
-📄 License
+```
+---
+
+## 📄 License
 
 MIT License
 
-💡 Author Notes
+---
+
+## 💡 Author Notes
 
 This project is designed for real-world automation workflows involving financial documents and structured data extraction.
