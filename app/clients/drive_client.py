@@ -18,9 +18,6 @@ def get_drive_service():
     if not service_account_file:
         raise ValueError("GOOGLE_SERVICE_ACCOUNT_FILE is missing")
 
-    if not os.path.isabs(service_account_file):
-        service_account_file = os.path.join(BASE_DIR, service_account_file)
-
     if not os.path.exists(service_account_file):
         raise FileNotFoundError(f"Service account file not found: {service_account_file}")
 
