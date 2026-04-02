@@ -1,15 +1,8 @@
 import os
-from dotenv import load_dotenv
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from config import GOOGLE_DRIVE_PARENT_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_FILE
-
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ENV_PATH = os.path.join(BASE_DIR, ".env")
-
-load_dotenv(ENV_PATH)
 
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
@@ -18,10 +11,6 @@ def get_drive_service():
 
     parent_folder_id = GOOGLE_DRIVE_PARENT_FOLDER_ID
     service_account_file = GOOGLE_SERVICE_ACCOUNT_FILE
-
-    print("ENV PATH:", ENV_PATH)
-    print("parent_folder_id RAW:", os.getenv("GOOGLE_DRIVE_PARENT_FOLDER_ID"))
-    print("parent_folder_id FINAL:", parent_folder_id)
 
     if not parent_folder_id or parent_folder_id == "your_parent_folder_id_here":
         raise ValueError("GOOGLE_DRIVE_PARENT_FOLDER_ID is missing or still set to placeholder value")
