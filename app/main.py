@@ -21,8 +21,13 @@ def load_config() -> tuple[str, str]:
     """
     load_dotenv()
 
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
     parent_folder_id = os.getenv("GOOGLE_DRIVE_PARENT_FOLDER_ID", "").strip()
     service_account_file = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "").strip()
+
+    if not os.path.isabs(service_account_file):
+        service_account_file = os.path.join(BASE_DIR, service_account_file)
 
     if not parent_folder_id:
         raise ValueError("Missing GOOGLE_DRIVE_PARENT_FOLDER_ID in .env")
