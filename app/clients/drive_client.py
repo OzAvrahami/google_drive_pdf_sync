@@ -84,48 +84,65 @@ def list_pdfs_in_folder(service, folder_id):
     return pdfs
 
 
-def get_folder_pdf_hierarchy(service, parent_folder_id):
-    result = []
+def _collect_pdfs_recursive(service, folder_id, folder_path, visited):
+    """
+    Recursively collect all PDF records under folder_id at any depth.
 
-    subfolders = list_subfolders(service, parent_folder_id)
+    folder_path is the slash-joined path from the traversal root to the
+    current folder (empty string for the root folder itself).
+    visited guards against traversal loops caused by Drive shortcuts.
 
-    for folder in subfolders:
-        folder_id = folder["id"]
-        folder_name = folder["name"]
+    Returns a flat list of PDF record dicts.
+    """
+    if folder_id in visited:
+        return []
+    visited.add(folder_id)
 
-        pdfs = list_pdfs_in_folder(service, folder_id)
+    records = []
 
-        result.append({
+    for pdf in list_pdfs_in_folder(service, folder_id):
+        records.append({
+            "id": pdf["id"],
+            "name": pdf["name"],
             "folder_id": folder_id,
-            "folder_name": folder_name,
-            "pdfs": [
-                {
-                    "id": pdf["id"],
-                    "name": pdf["name"],
-                    "createdTime": pdf.get("createdTime"),
-                    "modifiedTime": pdf.get("modifiedTime"),
-                }
-                for pdf in pdfs
-            ]
+            "folder_path": folder_path,
+            "createdTime": pdf.get("createdTime"),
+            "modifiedTime": pdf.get("modifiedTime"),
         })
 
-    return result
+    for subfolder in list_subfolders(service, folder_id):
+        child_path = (
+            f"{folder_path}/{subfolder['name']}" if folder_path else subfolder["name"]
+        )
+        records.extend(
+            _collect_pdfs_recursive(service, subfolder["id"], child_path, visited)
+        )
+
+    return records
 
 
-def print_hierarchy(data):
-    if not data:
-        print("No subfolders found.")
+def get_folder_pdf_hierarchy(service, parent_folder_id):
+    """
+    Return a flat list of all PDF records found under parent_folder_id,
+    at any nesting depth.
+
+    Each record contains:
+        id, name, folder_id, folder_path, createdTime, modifiedTime
+
+    folder_path is relative to parent_folder_id (empty string means the
+    PDF lives directly inside the root folder).
+    """
+    return _collect_pdfs_recursive(service, parent_folder_id, "", set())
+
+
+def print_hierarchy(records):
+    if not records:
+        print("No PDF files found.")
         return
 
-    for folder in data:
-        print(f"\n📁 {folder['folder_name']} ({folder['folder_id']})")
-
-        if not folder["pdfs"]:
-            print("   └── No PDF files found")
-            continue
-
-        for pdf in folder["pdfs"]:
-            print(f"   └── {pdf['name']} ({pdf['id']})")
+    for pdf in records:
+        location = pdf["folder_path"] or "(root)"
+        print(f"   [{location}] {pdf['name']} ({pdf['id']})")
 
 
 def main():

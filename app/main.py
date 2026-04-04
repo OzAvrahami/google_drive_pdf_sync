@@ -14,20 +14,14 @@ def main():
     except Exception as e:
         print(f"[ERROR] {e}")
 
-def print_hierarchy(data):
-    if not data:
-        print("No subfolder found.")
+def print_hierarchy(records):
+    if not records:
+        print("No PDF files found.")
         return
-    
-    for folder in data:
-        print(f"\n📁 {folder['folder_name']}")
 
-        if not folder["pdfs"]:
-            print("   └── No PDF files found")
-            continue
-        
-        for pdf in folder["pdfs"]:
-            print(f"   └── {pdf['name']}")
+    for pdf in records:
+        location = pdf["folder_path"] or "(root)"
+        print(f"   [{location}] {pdf['name']}")
 
 if __name__ == "__main__":
     main()
