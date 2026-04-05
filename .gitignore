@@ -66,3 +66,4 @@ htmlcov/
 # =========================
 *.bak
 *.tmp
+downloads/
