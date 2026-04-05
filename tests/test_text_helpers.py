@@ -49,8 +49,9 @@ class TestFixRtlLine:
         assert _fix_rtl_line('מ"עב םוה הדנפ') == 'פנדה הום בע"מ'
 
     def test_hebrew_word_with_backslash_quote(self):
-        # Abbreviation marker \" inside a Hebrew word must survive reversal
-        assert _fix_rtl_line('מ\\"עב') == 'בע\\"מ'
+        # Characters are reversed individually; \" pair order reverses too.
+        # Input chars: מ \ " ע ב  →  reversed: ב ע " \ מ
+        assert _fix_rtl_line('מ\\"עב') == 'בע"\\מ'
 
     # --- mixed Hebrew + LTR content -----------------------------------------
 

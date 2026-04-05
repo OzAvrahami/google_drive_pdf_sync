@@ -200,7 +200,9 @@ def _extract_business_name(text: str) -> Optional[str]:
                 return name
 
     # 3. Line immediately after the doc-type + number line
-    # Fix 4: stop traversal when hitting customer section markers
+    # Only applies when the customer section (לכבוד/לידי) has NOT appeared
+    # before the doc-type line — otherwise the supplier is above לכבוד: and
+    # strategy 4 handles it better.
     lines = text.splitlines()
     for i, line in enumerate(lines):
         is_doc_line = (
@@ -208,6 +210,24 @@ def _extract_business_name(text: str) -> Optional[str]:
             or _RE_TAX_EN.search(line) or _RE_DARISHA.search(line)
         )
         if is_doc_line and re.search(r'[A-Za-z0-9]{3,}', line):
+            # If substantive non-skip lines exist before the customer section,
+            # strategy 4 can find the supplier there — skip strategy 3.
+            # But if לכבוד: is the very first meaningful line (nothing useful above
+            # it), fall through to strategy 3 which looks below the doc-type line.
+            first_customer = next(
+                (k for k in range(i) if _RE_CUSTOMER_SECTION.search(lines[k])), None
+            )
+            if first_customer is not None:
+                _doc_pats = (_RE_ESEK, _RE_MAS, _RE_MAS_TYPO, _RE_TAX_EN, _RE_DARISHA)
+                supplier_above = any(
+                    lines[k].strip()
+                    and not lines[k].strip().startswith('---')
+                    and not _is_skip_line(lines[k].strip())
+                    and not any(p.search(lines[k]) for p in _doc_pats)
+                    for k in range(first_customer)
+                )
+                if supplier_above:
+                    continue  # strategy 4 will find it above לכבוד:
             for j in range(i + 1, min(i + 4, len(lines))):
                 candidate = lines[j].strip()
                 if _RE_CUSTOMER_SECTION.search(candidate):  # stop at customer section

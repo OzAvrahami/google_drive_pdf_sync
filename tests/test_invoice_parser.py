@@ -1,9 +1,8 @@
 """
 Unit tests for app.parsers.invoice_parser.
 
-Test strings are derived from real extracted PDF text observed in this
-corpus (see tests/test_pdf_parser.py for live extraction).  They are
-representative but minimal — each case targets one specific behaviour.
+Text fixtures are derived from real extracted PDF text observed in this corpus.
+Each case targets one specific behaviour.
 
 Run from the project root:
     pytest tests/test_invoice_parser.py -v
@@ -11,21 +10,13 @@ Run from the project root:
 
 import pytest
 from app.parsers.invoice_parser import (
-    DOC_CHESHBON_ESEK,
-    DOC_CHESHBONIT_MAS,
-    DOC_KABALA,
-    DOC_KABALA_MAS,
-    STATUS_PROCESSED,
-    STATUS_SKIPPED_RECEIPT,
-    STATUS_SKIPPED_INV_RECEIPT,
-    STATUS_UNRECOGNIZED,
     classify_document_type,
     should_process_document,
-    extract_invoice_number,
-    extract_invoice_date,
-    extract_total_amount,
-    extract_business_name,
     parse_invoice_text,
+    _extract_invoice_number,
+    _extract_invoice_date,
+    _extract_amount,
+    _extract_business_name,
 )
 
 
@@ -190,7 +181,7 @@ KABALA_MAS_WOLT = """\
 סה"כ בש"ח )כולל מע״מ( 271.90
 """
 
-UNRECOGNIZED_PAYMENT_REQUEST = """\
+DARISHA_TASHLUM = """\
 
 --- PAGE 1 ---
 יעל רותם
@@ -222,219 +213,184 @@ MULTILINE_AMOUNT = """\
 class TestClassifyDocumentType:
 
     def test_cheshbon_esek_accepted(self):
-        doc, status = classify_document_type(CHESHBON_ESEK_ICOUNT)
-        assert doc == DOC_CHESHBON_ESEK
-        assert status == STATUS_PROCESSED
+        assert classify_document_type(CHESHBON_ESEK_ICOUNT) == "חשבון עסקה"
 
     def test_cheshbonit_mas_accepted(self):
-        doc, status = classify_document_type(CHESHBONIT_MAS_ICOUNT)
-        assert doc == DOC_CHESHBONIT_MAS
-        assert status == STATUS_PROCESSED
+        assert classify_document_type(CHESHBONIT_MAS_ICOUNT) == "חשבונית מס"
 
-    def test_tax_invoice_english_accepted_as_cheshbonit_mas(self):
-        doc, status = classify_document_type(CHESHBONIT_MAS_TAX_INVOICE_EN)
-        assert doc == DOC_CHESHBONIT_MAS
-        assert status == STATUS_PROCESSED
+    def test_tax_invoice_english_accepted(self):
+        assert classify_document_type(CHESHBONIT_MAS_TAX_INVOICE_EN) == "חשבונית מס"
 
     def test_kabala_simple_rejected(self):
-        doc, status = classify_document_type(KABALA_SIMPLE)
-        assert doc == DOC_KABALA
-        assert status == STATUS_SKIPPED_RECEIPT
+        assert classify_document_type(KABALA_SIMPLE) == "קבלה"
 
     def test_kabala_mas_tabit_rejected(self):
-        doc, status = classify_document_type(KABALA_MAS_TABIT)
-        assert doc == DOC_KABALA_MAS
-        assert status == STATUS_SKIPPED_INV_RECEIPT
+        assert classify_document_type(KABALA_MAS_TABIT) == "חשבונית מס קבלה"
 
     def test_kabala_mas_wolt_slash_format_rejected(self):
-        # "חשבונית מס / קבלה" — with slash separator
-        doc, status = classify_document_type(KABALA_MAS_WOLT)
-        assert doc == DOC_KABALA_MAS
-        assert status == STATUS_SKIPPED_INV_RECEIPT
+        assert classify_document_type(KABALA_MAS_WOLT) == "חשבונית מס קבלה"
 
-    def test_unrecognized_type(self):
-        doc, status = classify_document_type(UNRECOGNIZED_PAYMENT_REQUEST)
-        assert doc is None
-        assert status == STATUS_UNRECOGNIZED
+    def test_darisha_tashlum_accepted(self):
+        # "דרישת תשלום" is a supported type
+        assert classify_document_type(DARISHA_TASHLUM) == "דרישת תשלום"
 
     def test_invoice_with_embedded_kabala_ref_not_rejected(self):
-        # Priority: has "קבלה מספר RCI..." internally but IS a חשבונית מס
-        doc, status = classify_document_type(CHESHBONIT_MAS_WITH_KABALA_REF)
-        assert doc == DOC_CHESHBONIT_MAS
-        assert status == STATUS_PROCESSED
+        # Priority: contains "קבלה מספר RCI..." internally — must still be חשבונית מס
+        assert classify_document_type(CHESHBONIT_MAS_WITH_KABALA_REF) == "חשבונית מס"
 
     def test_kabala_mas_never_accepted_as_cheshbonit_mas(self):
-        # "חשבונית מס קבלה" must be rejected, never accepted as "חשבונית מס"
-        doc, _ = classify_document_type(KABALA_MAS_TABIT)
-        assert doc != DOC_CHESHBONIT_MAS
+        assert classify_document_type(KABALA_MAS_TABIT) != "חשבונית מס"
 
-    def test_empty_text_is_unrecognized(self):
-        doc, status = classify_document_type("")
-        assert doc is None
-        assert status == STATUS_UNRECOGNIZED
+    def test_empty_text_is_none(self):
+        assert classify_document_type("") is None
 
+
+# ─── should_process_document ─────────────────────────────────────────────────
 
 class TestShouldProcessDocument:
 
     def test_returns_true_for_accepted_types(self):
         assert should_process_document(CHESHBON_ESEK_ICOUNT) is True
         assert should_process_document(CHESHBONIT_MAS_ICOUNT) is True
+        assert should_process_document(DARISHA_TASHLUM) is True
 
     def test_returns_false_for_rejected_types(self):
         assert should_process_document(KABALA_SIMPLE) is False
         assert should_process_document(KABALA_MAS_TABIT) is False
 
     def test_returns_false_for_unrecognized(self):
-        assert should_process_document(UNRECOGNIZED_PAYMENT_REQUEST) is False
+        assert should_process_document("random unrecognized text") is False
 
 
-# ─── extract_invoice_number ───────────────────────────────────────────────────
+# ─── _extract_invoice_number ──────────────────────────────────────────────────
 
 class TestExtractInvoiceNumber:
 
     def test_icount_footer_pipe_pattern(self):
-        assert extract_invoice_number(CHESHBON_ESEK_ICOUNT) == "40331"
+        assert _extract_invoice_number(CHESHBON_ESEK_ICOUNT) == "40331"
 
     def test_icount_footer_cheshbonit_mas(self):
-        assert extract_invoice_number(CHESHBONIT_MAS_ICOUNT) == "50094"
+        assert _extract_invoice_number(CHESHBONIT_MAS_ICOUNT) == "50094"
 
     def test_icount_english_footer(self):
-        assert extract_invoice_number(CHESHBONIT_MAS_TAX_INVOICE_EN) == "50171"
+        assert _extract_invoice_number(CHESHBONIT_MAS_TAX_INVOICE_EN) == "50171"
 
     def test_hebrew_heading_with_maspor(self):
-        # "חשבון עסקה מספר 100038"
         text = "חשבון עסקה מספר 100038\nמקור\n"
-        assert extract_invoice_number(text) == "100038"
+        assert _extract_invoice_number(text) == "100038"
 
     def test_hebrew_heading_with_parenthesised_maqor(self):
-        # "חשבון עסקה 300001 )מקור("
-        assert extract_invoice_number(CHESHBON_ESEK_MAT_LABEL) == "300001"
+        assert _extract_invoice_number(CHESHBON_ESEK_MAT_LABEL) == "300001"
 
     def test_cheshbonit_mas_with_maspor(self):
-        assert extract_invoice_number(CHESHBONIT_MAS_LABELED_DATE) == "26010096"
+        assert _extract_invoice_number(CHESHBONIT_MAS_LABELED_DATE) == "26010096"
 
     def test_cheshbonit_mas_merged_variant(self):
-        # "חשבונית מס מרכזת SII26608838"
-        assert extract_invoice_number(CHESHBONIT_MAS_WITH_KABALA_REF) == "SII26608838"
+        assert _extract_invoice_number(CHESHBONIT_MAS_WITH_KABALA_REF) == "SII26608838"
 
     def test_english_invoice_number_label(self):
         text = "Invoice number: 538221832\nDigitalOcean LLC\n"
-        assert extract_invoice_number(text) == "538221832"
+        assert _extract_invoice_number(text) == "538221832"
 
     def test_english_invoice_hash_label(self):
         text = "Invoice # INV05085197\nAsana Inc\n"
-        assert extract_invoice_number(text) == "INV05085197"
+        assert _extract_invoice_number(text) == "INV05085197"
 
     def test_no_number_returns_none(self):
-        assert extract_invoice_number("some text without an invoice number") is None
+        assert _extract_invoice_number("some text without an invoice number") is None
 
 
-# ─── extract_invoice_date ─────────────────────────────────────────────────────
+# ─── _extract_invoice_date ────────────────────────────────────────────────────
 
 class TestExtractInvoiceDate:
 
     def test_icount_footer_date(self):
-        assert extract_invoice_date(CHESHBON_ESEK_ICOUNT) == "03/02/2026"
+        assert _extract_invoice_date(CHESHBON_ESEK_ICOUNT) == "03/02/2026"
 
     def test_icount_english_footer_date(self):
-        assert extract_invoice_date(CHESHBONIT_MAS_TAX_INVOICE_EN) == "21/01/2026"
+        assert _extract_invoice_date(CHESHBONIT_MAS_TAX_INVOICE_EN) == "21/01/2026"
 
     def test_labeled_date_tarich(self):
-        assert extract_invoice_date(CHESHBONIT_MAS_LABELED_DATE) == "31/01/2026"
+        assert _extract_invoice_date(CHESHBONIT_MAS_LABELED_DATE) == "31/01/2026"
 
     def test_labeled_date_tarich_cheshbonit(self):
         # "תאריך חשבונית: 10/03/26" — 2-digit year expanded
-        assert extract_invoice_date(CHESHBONIT_MAS_WITH_KABALA_REF) == "10/03/2026"
+        assert _extract_invoice_date(CHESHBONIT_MAS_WITH_KABALA_REF) == "10/03/2026"
 
     def test_taarich_label_without_qualifier(self):
-        # "תאריך: 22/02/2026" in body
-        assert extract_invoice_date(PULSEEM_NO_LEKAVOD) == "22/02/2026"
+        assert _extract_invoice_date(PULSEEM_NO_LEKAVOD) == "22/02/2026"
 
-    def test_payment_due_date_not_extracted_as_invoice_date(self):
-        # "לתשלום עד 28/02/2026" must not be the result when a better date exists
-        date = extract_invoice_date(CHESHBON_ESEK_ICOUNT)
-        assert date == "03/02/2026"   # footer date wins
+    def test_payment_due_date_not_used_when_better_date_exists(self):
+        # Footer date "03/02/2026" must win over "לתשלום עד 28/02/2026"
+        assert _extract_invoice_date(CHESHBON_ESEK_ICOUNT) == "03/02/2026"
 
     def test_no_date_returns_none(self):
-        assert extract_invoice_date("no date here") is None
+        assert _extract_invoice_date("no date here") is None
 
 
-# ─── extract_total_amount ─────────────────────────────────────────────────────
+# ─── _extract_amount ──────────────────────────────────────────────────────────
 
-class TestExtractTotalAmount:
+class TestExtractAmount:
 
     def test_sehakol_letashloum(self):
-        assert extract_total_amount(CHESHBON_ESEK_ICOUNT) == "7500.00"
+        assert _extract_amount(CHESHBON_ESEK_ICOUNT) == 7500.0
 
     def test_sehakol_letashloum_beshach(self):
-        # "סה"כ לתשלום בש''ח 142,770.48"
-        assert extract_total_amount(CHESHBONIT_MAS_LABELED_DATE) == "142770.48"
+        assert _extract_amount(CHESHBONIT_MAS_LABELED_DATE) == 142770.48
 
     def test_total_payable_english(self):
-        assert extract_total_amount(CHESHBONIT_MAS_TAX_INVOICE_EN) == "25635.50"
+        assert _extract_amount(CHESHBONIT_MAS_TAX_INVOICE_EN) == 25635.5
 
     def test_sehakol_kolel_maam(self):
-        # "סה"כ כולל מע"מ: ₪16,992.00"
-        assert extract_total_amount(PULSEEM_NO_LEKAVOD) == "16992.00"
+        assert _extract_amount(PULSEEM_NO_LEKAVOD) == 16992.0
 
     def test_sehakol_kolel_multiline(self):
-        # Amount on line following "סה"כ כולל"
-        assert extract_total_amount(MULTILINE_AMOUNT) == "10620.00"
+        assert _extract_amount(MULTILINE_AMOUNT) == 10620.0
 
     def test_priority_sehakol_mehir_format(self):
-        # "סה"כ מחיר 8,923.00 ש"ח"
-        assert extract_total_amount(CHESHBONIT_MAS_WITH_KABALA_REF) == "8923.00"
+        assert _extract_amount(CHESHBONIT_MAS_WITH_KABALA_REF) == 8923.0
 
     def test_no_amount_returns_none(self):
-        assert extract_total_amount("invoice text with no totals") is None
+        assert _extract_amount("invoice text with no totals") is None
 
 
-# ─── extract_business_name ────────────────────────────────────────────────────
+# ─── _extract_business_name ───────────────────────────────────────────────────
 
 class TestExtractBusinessName:
 
     def test_mat_label(self):
-        # "מאת: מרגריטה שימנובסקי"
-        assert extract_business_name(CHESHBON_ESEK_MAT_LABEL) == "מרגריטה שימנובסקי"
+        assert _extract_business_name(CHESHBON_ESEK_MAT_LABEL) == "מרגריטה שימנובסקי"
 
     def test_lekavod_line_customer_then_issuer(self):
-        # "לכבוד: פנדה הום בע"מ היפוקמפוס סי אקס בע"מ"
-        name = extract_business_name(CHESHBONIT_MAS_ICOUNT)
+        name = _extract_business_name(CHESHBONIT_MAS_ICOUNT)
         assert name == 'היפוקמפוס סי אקס בע"מ'
 
     def test_lekavod_line_individual_issuer(self):
-        # "לכבוד: פנדה הום בע"מ ניצן פרידמן- עיצוב גרפי ומדיה חברתית"
-        name = extract_business_name(CHESHBON_ESEK_ICOUNT)
+        name = _extract_business_name(CHESHBON_ESEK_ICOUNT)
         assert name == "ניצן פרידמן- עיצוב גרפי ומדיה חברתית"
 
     def test_after_doc_type_line(self):
-        # "חשבון עסקה 40608\nניב ביטס ייצוג אמנים בע"מ"
-        name = extract_business_name(CHESHBON_ESEK_AFTER_HEADER)
+        name = _extract_business_name(CHESHBON_ESEK_AFTER_HEADER)
         assert name == 'ניב ביטס ייצוג אמנים בע"מ'
 
     def test_after_doc_type_english(self):
-        # "Tax Invoice 50171\nSELLENCE TECHNOLOGY LTD"
-        name = extract_business_name(CHESHBONIT_MAS_TAX_INVOICE_EN)
+        name = _extract_business_name(CHESHBONIT_MAS_TAX_INVOICE_EN)
         assert name == "SELLENCE TECHNOLOGY LTD"
 
     def test_after_doc_type_no_lekavod(self):
-        # "חשבון עסקה 47373\nפולסים בע"מ"
-        name = extract_business_name(PULSEEM_NO_LEKAVOD)
+        name = _extract_business_name(PULSEEM_NO_LEKAVOD)
         assert name == 'פולסים בע"מ'
 
     def test_first_substantive_line(self):
-        # "היי ביז בע"מ" is first line; "לכבוד:" breaks the search
-        name = extract_business_name(CHESHBONIT_MAS_FIRST_LINE)
+        name = _extract_business_name(CHESHBONIT_MAS_FIRST_LINE)
         assert name == 'היי ביז בע"מ'
 
     def test_first_line_trailing_noise_stripped(self):
-        # "רועי זמיר מסמך ממוחשב" — trailing noise stripped
-        name = extract_business_name(MULTILINE_AMOUNT)
+        name = _extract_business_name(MULTILINE_AMOUNT)
         assert name == "רועי זמיר"
 
     def test_priority_first_substantive_line(self):
-        # Issuer "פריוריטי סופטוור בע"מ" is first line
-        name = extract_business_name(CHESHBONIT_MAS_WITH_KABALA_REF)
+        name = _extract_business_name(CHESHBONIT_MAS_WITH_KABALA_REF)
         assert name == 'פריוריטי סופטוור בע"מ'
 
 
@@ -443,46 +399,40 @@ class TestExtractBusinessName:
 class TestParseInvoiceText:
 
     def test_processed_record_has_all_fields(self):
-        record = parse_invoice_text(
-            CHESHBON_ESEK_ICOUNT,
-            file_name="40331.pdf",
-            folder_path="ינואר 2026/חשבון עסקה",
-        )
-        assert record.status        == STATUS_PROCESSED
-        assert record.document_type == DOC_CHESHBON_ESEK
-        assert record.file_name     == "40331.pdf"
-        assert record.folder_path   == "ינואר 2026/חשבון עסקה"
-        assert record.invoice_number == "40331"
-        assert record.invoice_date   == "03/02/2026"
-        assert record.amount         == "7500.00"
-        assert record.business_name is not None
+        result = parse_invoice_text(CHESHBON_ESEK_ICOUNT)
+        assert result is not None
+        assert result["document_type"]  == "transaction_invoice"
+        assert result["invoice_number"] == "40331"
+        assert result["invoice_date"]   == "03/02/2026"
+        assert result["amount"]         == 7500.0
+        assert result["business_name"]  is not None
 
-    def test_skipped_receipt_has_no_extracted_fields(self):
-        record = parse_invoice_text(KABALA_SIMPLE)
-        assert record.status        == STATUS_SKIPPED_RECEIPT
-        assert record.document_type == DOC_KABALA
-        assert record.invoice_number is None
-        assert record.invoice_date   is None
-        assert record.amount         is None
-        assert record.business_name  is None
+    def test_tax_invoice_type(self):
+        result = parse_invoice_text(CHESHBONIT_MAS_ICOUNT)
+        assert result is not None
+        assert result["document_type"] == "tax_invoice"
 
-    def test_skipped_invoice_receipt(self):
-        record = parse_invoice_text(KABALA_MAS_TABIT)
-        assert record.status        == STATUS_SKIPPED_INV_RECEIPT
-        assert record.document_type == DOC_KABALA_MAS
+    def test_payment_request_type(self):
+        result = parse_invoice_text(DARISHA_TASHLUM)
+        assert result is not None
+        assert result["document_type"] == "payment_request"
 
-    def test_unrecognized_document(self):
-        record = parse_invoice_text(UNRECOGNIZED_PAYMENT_REQUEST)
-        assert record.status == STATUS_UNRECOGNIZED
-        assert record.invoice_number is None
+    def test_receipt_returns_none(self):
+        assert parse_invoice_text(KABALA_SIMPLE) is None
 
-    def test_to_dict_never_contains_none(self):
-        record = parse_invoice_text(KABALA_SIMPLE)
-        d = record.to_dict()
-        for key, val in d.items():
-            assert val is not None, f"to_dict() returned None for key '{key}'"
+    def test_invoice_receipt_returns_none(self):
+        assert parse_invoice_text(KABALA_MAS_TABIT) is None
 
-    def test_file_name_and_folder_path_always_present(self):
-        record = parse_invoice_text("", file_name="x.pdf", folder_path="some/path")
-        assert record.file_name   == "x.pdf"
-        assert record.folder_path == "some/path"
+    def test_unrecognized_returns_none(self):
+        assert parse_invoice_text("random text with no invoice markers") is None
+
+    def test_amount_is_float(self):
+        result = parse_invoice_text(CHESHBON_ESEK_ICOUNT)
+        assert isinstance(result["amount"], float)
+
+    def test_all_dict_keys_present(self):
+        result = parse_invoice_text(CHESHBONIT_MAS_ICOUNT)
+        assert result is not None
+        for key in ("document_type", "business_name", "invoice_date",
+                    "invoice_number", "amount"):
+            assert key in result
