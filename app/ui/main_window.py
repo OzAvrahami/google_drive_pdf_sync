@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
 from app.config import EXCEL_OUTPUT_PATH
 from app.models.document import Document
 from app.services.document_store import DocumentStore
+from app.ui.progress_dialog import ProgressDialog
 from app.ui.review_dialog import ReviewDialog
 from app.ui.workers import ExportWorker, ProcessWorker, RetryWorker, ScanWorker
 
@@ -315,24 +316,29 @@ class MainWindow(QMainWindow):
     def _on_scan(self) -> None:
         self._lock_toolbar()
         worker = ScanWorker(self._store)
-        worker.progress.connect(self._set_progress)
-        worker.finished.connect(self._on_scan_done)
-        worker.error.connect(self._on_worker_error)
+        dlg = ProgressDialog("סריקת Google Drive", parent=self)
+        worker.progress.connect(dlg.set_status)
+        worker.progress.connect(dlg.append_log)
+        worker.finished.connect(dlg.on_success)
+        worker.error.connect(dlg.on_error)
         self._run_worker(worker)
-
-    def _on_scan_done(self, summary: dict) -> None:
+        dlg.exec()
         self._unlock_toolbar()
         self._refresh_table()
-        msg = (
-            f"סריקה הושלמה — "
-            f"נמצאו: {summary['total_found']} | "
-            f"חדשים: {summary['new']} | "
-            f"עודכנו: {summary['updated']} | "
-            f"קיימים: {summary['skipped']}"
-        )
-        self._set_progress(msg)
-        if summary["new"] or summary["updated"]:
-            QMessageBox.information(self, "סריקה הושלמה", msg)
+        if dlg.error_message:
+            self._set_progress(f"שגיאה: {dlg.error_message}")
+        elif dlg.outcome_summary:
+            summary = dlg.outcome_summary
+            msg = (
+                f"סריקה הושלמה — "
+                f"נמצאו: {summary['total_found']} | "
+                f"חדשים: {summary['new']} | "
+                f"עודכנו: {summary['updated']} | "
+                f"קיימים: {summary['skipped']}"
+            )
+            self._set_progress(msg)
+            if summary["new"] or summary["updated"]:
+                QMessageBox.information(self, "סריקה הושלמה", msg)
 
     def _on_process(self) -> None:
         pending = len(self._store.get_by_status("new"))
@@ -341,23 +347,28 @@ class MainWindow(QMainWindow):
             return
         self._lock_toolbar()
         worker = ProcessWorker(self._store)
-        worker.progress.connect(self._set_progress)
-        worker.finished.connect(self._on_process_done)
-        worker.error.connect(self._on_worker_error)
+        dlg = ProgressDialog("עיבוד מסמכים", parent=self)
+        worker.progress.connect(dlg.set_status)
+        worker.progress.connect(dlg.append_log)
+        worker.step.connect(dlg.set_step)
+        worker.finished.connect(dlg.on_success)
+        worker.error.connect(dlg.on_error)
         self._run_worker(worker)
-
-    def _on_process_done(self, summary: dict) -> None:
+        dlg.exec()
         self._unlock_toolbar()
         self._refresh_table()
-        msg = (
-            f"עיבוד הושלם — "
-            f"עובדו: {summary['total']} | "
-            f"הצליחו: {summary['success']} | "
-            f"לבדיקה: {summary['needs_review']} | "
-            f"נכשלו: {summary['failed']}"
-        )
-        self._set_progress(msg)
-        QMessageBox.information(self, "עיבוד הושלם", msg)
+        if dlg.error_message:
+            self._set_progress(f"שגיאה: {dlg.error_message}")
+        elif dlg.outcome_summary:
+            summary = dlg.outcome_summary
+            msg = (
+                f"עיבוד הושלם — "
+                f"עובדו: {summary['total']} | "
+                f"הצליחו: {summary['success']} | "
+                f"לבדיקה: {summary['needs_review']} | "
+                f"נכשלו: {summary['failed']}"
+            )
+            self._set_progress(msg)
 
     def _on_retry(self) -> None:
         drive_id = self._selected_drive_id()
@@ -366,15 +377,22 @@ class MainWindow(QMainWindow):
             return
         self._lock_toolbar()
         worker = RetryWorker(self._store, drive_id)
-        worker.progress.connect(self._set_progress)
-        worker.finished.connect(self._on_retry_done)
-        worker.error.connect(self._on_worker_error)
+        dlg = ProgressDialog("עיבוד מחדש", parent=self)
+        worker.progress.connect(dlg.set_status)
+        worker.progress.connect(dlg.append_log)
+        worker.finished.connect(dlg.on_success)
+        worker.error.connect(dlg.on_error)
         self._run_worker(worker)
-
-    def _on_retry_done(self, summary: dict) -> None:
+        dlg.exec()
         self._unlock_toolbar()
         self._refresh_table()
-        self._set_progress(f"עיבוד מחדש הושלם: {summary.get('retried')} → {summary.get('status')}")
+        if dlg.error_message:
+            self._set_progress(f"שגיאה: {dlg.error_message}")
+        elif dlg.outcome_summary:
+            summary = dlg.outcome_summary
+            self._set_progress(
+                f"עיבוד מחדש הושלם: {summary.get('retried')} → {summary.get('status')}"
+            )
 
     def _on_export(self) -> None:
         approved = self._store.get_by_status("approved")
@@ -386,34 +404,34 @@ class MainWindow(QMainWindow):
             return
         self._lock_toolbar()
         worker = ExportWorker(self._store, str(EXCEL_OUTPUT_PATH))
-        worker.progress.connect(self._set_progress)
-        worker.finished.connect(self._on_export_done)
-        worker.error.connect(self._on_worker_error)
+        dlg = ProgressDialog("ייצוא לאקסל", parent=self)
+        worker.progress.connect(dlg.set_status)
+        worker.progress.connect(dlg.append_log)
+        worker.finished.connect(dlg.on_success)
+        worker.error.connect(dlg.on_error)
         self._run_worker(worker)
-
-    def _on_export_done(self, summary: dict) -> None:
+        dlg.exec()
         self._unlock_toolbar()
         self._refresh_table()
-        count = summary.get("exported", 0)
-        path  = summary.get("path", "")
-        msg   = summary.get("message", f"יוצאו {count} מסמך/ים ל:\n{path}")
-        self._set_progress(f"ייצוא הושלם: {count} מסמכים")
-        box = QMessageBox(self)
-        box.setWindowTitle("ייצוא הושלם")
-        box.setText(msg)
-        if path:
-            open_btn = box.addButton("פתח קובץ", QMessageBox.ButtonRole.ActionRole)
-            box.addButton("סגור", QMessageBox.ButtonRole.RejectRole)
-            box.exec()
-            if box.clickedButton() == open_btn:
-                self._open_file(path)
-        else:
-            box.exec()
-
-    def _on_worker_error(self, msg: str) -> None:
-        self._unlock_toolbar()
-        self._set_progress(f"שגיאה: {msg}")
-        QMessageBox.critical(self, "שגיאה", msg)
+        if dlg.error_message:
+            self._set_progress(f"שגיאה: {dlg.error_message}")
+        elif dlg.outcome_summary:
+            summary = dlg.outcome_summary
+            count = summary.get("exported", 0)
+            path  = summary.get("path", "")
+            msg   = summary.get("message", f"יוצאו {count} מסמך/ים ל:\n{path}")
+            self._set_progress(f"ייצוא הושלם: {count} מסמכים")
+            box = QMessageBox(self)
+            box.setWindowTitle("ייצוא הושלם")
+            box.setText(msg)
+            if path:
+                open_btn = box.addButton("פתח קובץ", QMessageBox.ButtonRole.ActionRole)
+                box.addButton("סגור", QMessageBox.ButtonRole.RejectRole)
+                box.exec()
+                if box.clickedButton() == open_btn:
+                    self._open_file(path)
+            else:
+                box.exec()
 
     def _on_row_double_click(self) -> None:
         drive_id = self._selected_drive_id()

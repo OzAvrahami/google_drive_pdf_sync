@@ -46,6 +46,7 @@ class ProcessWorker(QThread):
     """Downloads and parses all documents with status 'new'."""
 
     progress = Signal(str)
+    step     = Signal(int, int, str)   # current, total, filename
     finished = Signal(dict)
     error    = Signal(str)
 
@@ -56,7 +57,10 @@ class ProcessWorker(QThread):
     def run(self) -> None:
         try:
             svc = ProcessingService(self._store)
-            summary = svc.process_new(progress=self.progress.emit)
+            summary = svc.process_new(
+                progress=self.progress.emit,
+                step_callback=self.step.emit,
+            )
             self.finished.emit(summary)
         except Exception as exc:
             logger.exception("ProcessWorker error: %s", exc)

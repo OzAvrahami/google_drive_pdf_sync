@@ -25,7 +25,8 @@ from app.utils.pdf_downloader import _download_file, resolve_local_path
 
 logger = logging.getLogger(__name__)
 
-Progress = Callable[[str], None]
+Progress     = Callable[[str], None]
+StepCallback = Callable[[int, int, str], None]
 
 # Non-supplier fields, each worth 25 % of the total score.
 _BASE_FIELDS = ("invoice_date", "invoice_number", "amount")
@@ -40,6 +41,7 @@ class ProcessingService:
         self,
         progress: Optional[Progress] = None,
         drive_service=None,
+        step_callback: Optional[StepCallback] = None,
     ) -> dict:
         """
         Process all documents with status "new".
@@ -64,6 +66,8 @@ class ProcessingService:
 
         for i, doc in enumerate(docs, 1):
             _progress(progress, f"Processing {i}/{len(docs)}: {doc.file_name}")
+            if step_callback:
+                step_callback(i, len(docs), doc.file_name)
             try:
                 self._process_one(doc, drive_service)
                 if doc.status == "processed":
