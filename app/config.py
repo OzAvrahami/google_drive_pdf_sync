@@ -1,19 +1,48 @@
+"""
+Application configuration.
+
+Loads from .env with sensible defaults.
+All path constants are pathlib.Path objects (absolute).
+"""
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ENV_PATH = os.path.join(BASE_DIR, ".env")
-
+BASE_DIR = Path(__file__).parent.parent
+ENV_PATH = BASE_DIR / ".env"
 load_dotenv(ENV_PATH)
 
 # ── Google Drive ───────────────────────────────────────────────────────────────
 GOOGLE_DRIVE_PARENT_FOLDER_ID = os.getenv("GOOGLE_DRIVE_PARENT_FOLDER_ID", "").strip()
-GOOGLE_SERVICE_ACCOUNT_FILE   = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "").strip()
+GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "").strip()
 
-if GOOGLE_SERVICE_ACCOUNT_FILE and not os.path.isabs(GOOGLE_SERVICE_ACCOUNT_FILE):
-    GOOGLE_SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, GOOGLE_SERVICE_ACCOUNT_FILE)
+if GOOGLE_SERVICE_ACCOUNT_FILE and not Path(GOOGLE_SERVICE_ACCOUNT_FILE).is_absolute():
+    GOOGLE_SERVICE_ACCOUNT_FILE = str(BASE_DIR / GOOGLE_SERVICE_ACCOUNT_FILE)
 
-# ── Local paths (override via .env if needed) ──────────────────────────────────
-DOWNLOAD_DIR     = os.getenv("DOWNLOAD_DIR",     os.path.join(BASE_DIR, "downloads"))
-EXCEL_OUTPUT_PATH = os.getenv("EXCEL_OUTPUT_PATH", os.path.join(BASE_DIR, "data", "output", "invoices.xlsx"))
-STATE_FILE_PATH  = os.getenv("STATE_FILE_PATH",  os.path.join(BASE_DIR, "data", "state", "sync_state.json"))
+# ── Data directories ───────────────────────────────────────────────────────────
+DATA_DIR = BASE_DIR / "data"
+
+DOWNLOADS_DIR = DATA_DIR / "downloads"
+PROCESSED_DIR = DATA_DIR / "processed"
+FAILED_DIR    = DATA_DIR / "failed"
+TEXT_DIR      = DATA_DIR / "text"
+OUTPUT_DIR    = DATA_DIR / "output"
+
+# ── Persistence files ──────────────────────────────────────────────────────────
+DOCUMENTS_JSON = DATA_DIR / "documents.json"
+SETTINGS_JSON  = DATA_DIR / "settings.json"
+
+# ── Excel export ───────────────────────────────────────────────────────────────
+EXCEL_OUTPUT_PATH = OUTPUT_DIR / "invoices.xlsx"
+
+# ── Legacy aliases (backward-compat for pdf_downloader.py and old main.py) ────
+DOWNLOAD_DIR    = DOWNLOADS_DIR
+STATE_FILE_PATH = DATA_DIR / "state" / "sync_state.json"
+
+
+def ensure_dirs() -> None:
+    """Create all required data directories."""
+    for d in (DOWNLOADS_DIR, PROCESSED_DIR, FAILED_DIR, TEXT_DIR, OUTPUT_DIR,
+              DATA_DIR / "state"):
+        d.mkdir(parents=True, exist_ok=True)

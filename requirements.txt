@@ -3,3 +3,7 @@ google-auth
 google-auth-httplib2
 google-auth-oauthlib
 python-dotenv
+pdfplumber
+pandas
+openpyxl
+PySide6

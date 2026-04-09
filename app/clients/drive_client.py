@@ -2,7 +2,7 @@ import os
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from config import GOOGLE_DRIVE_PARENT_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_FILE
+from app.config import GOOGLE_DRIVE_PARENT_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_FILE
 
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 

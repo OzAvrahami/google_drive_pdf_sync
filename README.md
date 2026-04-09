@@ -1,219 +1,157 @@
-# Google Drive PDF → Excel Sync
+# Local Accountant Tool — Google Drive PDF Processor
 
-A Python-based automation tool that scans a Google Drive folder containing subfolders with PDF files, extracts structured data (supplier and amount), and maintains an up-to-date Excel file.
+A simple local desktop tool for accountants.  
+Connects to Google Drive, downloads PDF invoices, parses them automatically,  
+and lets the accountant review, correct, approve, and export to Excel.
 
-Each subfolder in Google Drive is mapped to a separate worksheet in the Excel file.
-
----
-
-## 🚀 Features
-
-- 🔄 Incremental sync (only processes new or updated PDFs)
-- 📁 Supports nested folder structure (1 level under parent)
-- 📄 Extracts text from PDF files
-- 🧾 Extracts:
-  - Supplier name
-  - Amount
-- 📊 Generates a single Excel file with:
-  - One sheet per folder
-  - One row per PDF
-- 🧠 Persistent state tracking (prevents duplicate processing)
-- ❌ Detects deleted files and marks them accordingly
-- ⚡ Fast and scalable for large datasets
+**No servers. No database. No cloud subscriptions.**  
+Everything runs on one computer and is stored in local JSON files.
 
 ---
 
-## 🧱 Project Structure
+## Features
 
-
-google_drive_pdf_sync/
-│
-├── app/
-│ ├── main.py
-│ ├── config.py
-│ │
-│ ├── clients/
-│ │ └── drive_client.py
-│ │
-│ ├── parsers/
-│ │ └── pdf_parser.py
-│ │
-│ ├── extractors/
-│ │ └── invoice_extractor.py
-│ │
-│ ├── writers/
-│ │ └── excel_writer.py
-│ │
-│ ├── state/
-│ │ └── state_manager.py
-│ │
-│ ├── models/
-│ │ └── record.py
-│ │
-│ └── utils/
-│ └── ...
-│
-├── data/
-│ ├── output/
-│ │ └── invoices.xlsx
-│ ├── state/
-│ │ └── sync_state.json
-│ └── temp/
-│
-├── credentials/
-│ └── service_account.json
-│
-├── .env
-├── .gitignore
-├── requirements.txt
-└── README.md
-
+- Scans Google Drive folders recursively for PDF files
+- Downloads new PDFs only (incremental)
+- Extracts and parses invoice fields automatically (supplier, date, invoice #, total)
+- Supports Hebrew and English invoices
+- Stores all state in `data/documents.json` — a plain JSON file you can inspect
+- Review & correction screen for every document
+- Status tracking: `new → processed / needs_review / failed → approved → exported`
+- Export approved documents to Excel with duplicate detection
+- Simple, clean PySide6 desktop UI
 
 ---
 
-## ⚙️ Requirements
+## Requirements
 
-- Python 3.10+
-- Google Cloud Project with Drive API enabled
-- Service Account credentials
+- Python 3.11+
+- A Google Cloud service account with Drive read access
+- Windows / macOS / Linux
 
 ---
 
-## 📦 Installation
+## Setup
+
+### 1. Clone and install dependencies
 
 ```bash
-git clone <your-repo>
+git clone <repo-url>
 cd google_drive_pdf_sync
-
-python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
-
 pip install -r requirements.txt
-🔐 Google Drive Setup
-Go to Google Cloud Console
-Create a new project
-Enable Google Drive API
-Create a Service Account
-Download the JSON credentials file
-Place it in:
-credentials/service_account.json
-Share your target Google Drive folder with the service account email
-🔧 Configuration
+```
 
-Create a .env file:
+### 2. Google Drive credentials
 
-GOOGLE_DRIVE_PARENT_FOLDER_ID=your_folder_id
-EXCEL_OUTPUT_PATH=data/output/invoices.xlsx
-STATE_FILE_PATH=data/state/sync_state.json
-GOOGLE_SERVICE_ACCOUNT_FILE=credentials/service_account.json
-▶️ Running the Project
-python app/main.py
-🧠 How It Works
-1. Folder Mapping
-Google Drive:
-Parent Folder
-├── January
-│   ├── file1.pdf
-│   └── file2.pdf
-├── February
-│   └── file3.pdf
+1. Create a **Google Cloud project** and enable the **Google Drive API**.
+2. Create a **Service Account** and download its JSON key file.
+3. Share your Google Drive folder with the service account's email address (read-only is enough).
+4. Place the JSON key file at `credentials/service_account.json`  
+   (or point to it via `.env`).
 
-↓
+### 3. Configure `.env`
 
-Excel:
-- Sheet: January
-- Sheet: February
-2. Incremental Sync Logic
+Copy the example and fill in your values:
 
-Each file is tracked using:
+```bash
+cp .env.example .env
+```
 
-file_id
-modified_time
-(optional) checksum
-Behavior:
-מצב	פעולה
-קובץ חדש	מתווסף לאקסל
-קובץ עודכן	שורה מתעדכנת
-קובץ לא השתנה	מדולג
-קובץ נמחק	מסומן כ־deleted
-3. State Management
-
-The system maintains a JSON file:
-
-data/state/sync_state.json
-
-Example:
-
-{
-  "files": {
-    "file_id_1": {
-      "file_name": "invoice1.pdf",
-      "modified_time": "2026-04-01T08:00:00Z",
-      "sheet_name": "January"
-    }
-  }
-}
-📊 Excel Output Structure
-
-Each sheet contains:
-
-file_id	file_name	supplier	amount	modified_time	status
-
-You can hide technical columns (file_id, modified_time) if needed.
-
-🧾 PDF Processing
-
-Handled by:
-
-pdfplumber for text extraction
-🔍 Data Extraction
-
-The system extracts:
-
-Supplier
-Based on known patterns or top text lines
-Amount
-Regex-based detection of currency values
-
-This logic is customizable in:
-
-app/extractors/invoice_extractor.py
-⚠️ Limitations
-Works best with text-based PDFs
-Scanned PDFs require OCR (not included in v1)
-Extraction accuracy depends on PDF format consistency
-🔄 Future Improvements
-OCR support (Tesseract)
-Smart supplier detection (ML / rules engine)
-Web dashboard
-Google Sheets integration
-Scheduled execution (cron / cloud)
-🧪 Testing
-pytest
-🔒 Security Notes
-Never commit:
-.env
-credentials/
-data/state/
-Use .gitignore properly
-🧠 Design Principles
-Separation of concerns
-Idempotent sync
-Safe updates (no destructive deletes)
-Extensible architecture
-🤝 Contributing
-
-Feel free to fork and extend the project.
+Edit `.env`:
 
 ```
+GOOGLE_DRIVE_PARENT_FOLDER_ID=your_folder_id_here
+GOOGLE_SERVICE_ACCOUNT_FILE=credentials/service_account.json
+```
+
+The folder ID is the last part of the Google Drive folder URL:  
+`https://drive.google.com/drive/folders/`**`1AbCdEfGhIjK`**
+
 ---
 
-## 📄 License
+## Running the tool
 
-MIT License
+```bash
+python run.py
+```
+
+The desktop window will open.
 
 ---
 
-## 💡 Author Notes
+## Workflow
 
-This project is designed for real-world automation workflows involving financial documents and structured data extraction.
+| Step | Action | Button |
+|------|--------|--------|
+| 1 | Discover PDFs in Drive | **סרוק Drive** (Scan Drive) |
+| 2 | Download and parse all new files | **עבד מסמכים חדשים** (Process New) |
+| 3 | Review documents needing attention | Double-click any row → Review dialog |
+| 4 | Correct extracted fields if needed | Edit fields → **שמור תיקונים** (Save) |
+| 5 | Approve documents | **אשר מסמך** (Approve) in the review dialog |
+| 6 | Export to Excel | **ייצא לאקסל** (Export Approved) |
+
+---
+
+## Local file structure
+
+```
+data/
+├── documents.json        ← all document state (single source of truth)
+├── settings.json         ← app settings (auto-created)
+├── downloads/            ← downloaded PDF files
+│   └── <folder>/<file>.pdf
+├── text/                 ← extracted plain text per document
+│   └── <drive_file_id>.txt
+├── output/               ← Excel exports
+│   └── invoices.xlsx
+├── processed/            ← (reserved)
+├── failed/               ← (reserved)
+└── state/                ← legacy CLI state (for old main.py)
+```
+
+---
+
+## Document statuses
+
+| Status | Hebrew | Meaning |
+|--------|--------|---------|
+| `new` | חדש | Discovered in Drive, not yet processed |
+| `processed` | עובד | Parsed successfully (confidence ≥ 75 %) |
+| `needs_review` | לבדיקה | Parsed but low confidence or missing fields |
+| `failed` | שגיאה | Exception during download or parsing |
+| `approved` | מאושר | Accountant reviewed and approved |
+| `exported` | יוצא | Included in the Excel export |
+
+---
+
+## Running tests
+
+```bash
+pytest tests/ -v
+```
+
+All existing parser, state, and text-helper tests are preserved.
+
+---
+
+## Legacy CLI pipeline
+
+The original command-line pipeline still works:
+
+```bash
+python -m app.main
+```
+
+This is independent of the desktop UI and uses the old `data/state/` tracking.
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `GOOGLE_DRIVE_PARENT_FOLDER_ID is missing` | Check your `.env` file |
+| `Service account file not found` | Check `GOOGLE_SERVICE_ACCOUNT_FILE` path |
+| PDFs not found in Drive | Make sure the service account email has access to the folder |
+| `No module named 'PySide6'` | Run `pip install -r requirements.txt` |
+| Hebrew text garbled | Normal for some PDFs — use the review dialog to correct manually |
