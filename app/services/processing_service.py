@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 
 Progress = Callable[[str], None]
 
-# Fields that contribute to the confidence score.
-_CONFIDENCE_FIELDS = ("business_name", "invoice_date", "invoice_number", "amount")
+# Non-supplier fields, each worth 25 % of the total score.
+_BASE_FIELDS = ("invoice_date", "invoice_number", "amount")
 
 
 class ProcessingService:
@@ -124,7 +124,19 @@ class ProcessingService:
 
         # 5. Confidence & status
         doc.confidence = _confidence(parsed)
-        if doc.confidence >= 0.75:
+
+        # If the supplier was rejected (e.g. it was an address) and no valid
+        # fallback was found, always flag the document for review regardless
+        # of the numeric confidence score.
+        supplier_val = (parsed or {}).get("supplier_validation", {})
+        supplier_rejected_without_fallback = (
+            not supplier_val.get("is_valid", True)
+            and not supplier_val.get("fallback_used", False)
+        )
+
+        if supplier_rejected_without_fallback:
+            doc.status = "needs_review"
+        elif doc.confidence >= 0.75:
             doc.status = "processed"
         else:
             doc.status = "needs_review"
@@ -152,10 +164,35 @@ class ProcessingService:
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _confidence(parsed: Optional[dict]) -> float:
+    """
+    Weighted confidence score (0.0–1.0).
+
+    Weights:
+      - invoice_date    : 25 %
+      - invoice_number  : 25 %
+      - amount          : 25 %
+      - supplier score  : 25 %  (uses ValidationResult.score from supplier_validator)
+
+    A supplier that was rejected as an address contributes near-zero to the
+    supplier component, which lowers overall confidence and triggers
+    needs_review status even when every other field was found.
+    """
     if not parsed:
         return 0.0
-    found = sum(1 for f in _CONFIDENCE_FIELDS if parsed.get(f))
-    return round(found / len(_CONFIDENCE_FIELDS), 2)
+
+    # Base components (0–0.75)
+    base = sum(0.25 for f in _BASE_FIELDS if parsed.get(f))
+
+    # Supplier component (0–0.25): uses the 0–100 validator score
+    supplier_val   = parsed.get("supplier_validation", {})
+    supplier_score = supplier_val.get("score", 0)          # 0–100 int
+    # Treat a rejected-but-fallen-back supplier at face value (the fallback
+    # has its own score already).  Treat rejected-with-no-fallback as 0.
+    if not supplier_val.get("is_valid", True) and not supplier_val.get("fallback_used", False):
+        supplier_score = 0
+    supplier_component = (supplier_score / 100) * 0.25
+
+    return round(base + supplier_component, 2)
 
 
 def _progress(cb: Optional[Progress], msg: str) -> None:

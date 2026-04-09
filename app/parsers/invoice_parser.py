@@ -11,6 +11,8 @@ parse_invoice_text(text)     -> dict | None
 import re
 from typing import Optional
 
+from app.parsers.supplier_validator import validate_supplier
+
 # Hebrew PDFs use U+05F4 GERSHAYIM, ASCII 0x22, or curly U+201D in place of "
 _Q = '"\u05f4\u201c\u201d'
 
@@ -257,6 +259,14 @@ def _extract_business_name(text: str) -> Optional[str]:
     return None
 
 
+# ── Document type map (module-level constant, not rebuilt per call) ────────────
+
+_DOC_TYPE_MAP: dict[str, str] = {
+    "חשבון עסקה":  "transaction_invoice",
+    "חשבונית מס":  "tax_invoice",
+    "דרישת תשלום": "payment_request",
+}
+
 # ── Main entry point ───────────────────────────────────────────────────────────
 
 def parse_invoice_text(text: str) -> Optional[dict]:
@@ -280,18 +290,28 @@ def parse_invoice_text(text: str) -> Optional[dict]:
     if doc_type not in {"חשבון עסקה", "חשבונית מס", "דרישת תשלום"}:
         return None
 
-    _TYPE_MAP = {
-        "חשבון עסקה":  "transaction_invoice",
-        "חשבונית מס":  "tax_invoice",
-        "דרישת תשלום": "payment_request",
-    }
-    return {
-        "document_type":  _TYPE_MAP[doc_type],
-        "business_name":  _extract_business_name(text),
+    raw_supplier = _extract_business_name(text)
+    result = {
+        "document_type":  _DOC_TYPE_MAP[doc_type],
+        "business_name":  raw_supplier,
         "invoice_date":   _extract_invoice_date(text),
         "invoice_number": _extract_invoice_number(text),
         "amount":         _extract_amount(text),
     }
+
+    validation = validate_supplier(raw_supplier, text)
+    result["business_name"]       = validation.name
+    result["supplier_validation"] = {
+        "original":           raw_supplier,
+        "score":              validation.score,
+        "is_valid":           validation.is_valid,
+        "rejection_reason":   validation.rejection_reason,
+        "triggered_rule":     validation.triggered_rule,
+        "fallback_used":      validation.fallback_used,
+        "fallback_candidate": validation.fallback_candidate,
+        "address_score":      validation.address_score,
+    }
+    return result
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

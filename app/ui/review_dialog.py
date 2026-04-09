@@ -252,11 +252,10 @@ class ReviewDialog(QDialog):
 
     def _save(self) -> None:
         corrections = self._collect_corrections()
-
-        # Only store non-None corrections
         self._doc.corrected_data = {k: v for k, v in corrections.items() if v is not None}
         self._doc.status = self._status_combo.currentData()
         self._store.upsert(self._doc)
+        self._record_corrections_for_learning(corrections)
         self._saved = True
         self.accept()
 
@@ -265,8 +264,59 @@ class ReviewDialog(QDialog):
         self._doc.corrected_data = {k: v for k, v in corrections.items() if v is not None}
         self._doc.status = "approved"
         self._store.upsert(self._doc)
+        self._record_corrections_for_learning(corrections)
         self._saved = True
         self.accept()
+
+    def _record_corrections_for_learning(self, corrections: dict) -> None:
+        """
+        For each corrected field that differs from the original extracted value,
+        call record_and_learn() so the system can infer reusable rules over time.
+
+        Mapping between review-dialog field names and parser extracted_data keys:
+          supplier_name  → business_name
+          invoice_date   → invoice_date
+          invoice_number → invoice_number
+          total          → amount
+        """
+        # Fields the parser actually extracts (others are manual-only additions).
+        _PARSER_FIELD_MAP = {
+            "supplier_name":  "business_name",
+            "invoice_date":   "invoice_date",
+            "invoice_number": "invoice_number",
+            "total":          "amount",
+        }
+
+        try:
+            from app.services.learning_service import record_and_learn
+        except Exception as exc:
+            logger.warning("Learning service unavailable: %s", exc)
+            return
+
+        extracted = self._doc.extracted_data
+
+        for dialog_field, parser_key in _PARSER_FIELD_MAP.items():
+            corrected = corrections.get(dialog_field)
+            if corrected is None:
+                continue
+
+            original = extracted.get(parser_key)
+            original_str  = str(original).strip() if original is not None else ""
+            corrected_str = str(corrected).strip()
+
+            if original_str == corrected_str:
+                continue   # No actual change — nothing to learn.
+
+            try:
+                record_and_learn(
+                    field_name      = dialog_field,
+                    original_value  = original_str,
+                    corrected_value = corrected_str,
+                    drive_file_id   = self._doc.drive_file_id,
+                    file_name       = self._doc.file_name,
+                )
+            except Exception as exc:
+                logger.warning("record_and_learn failed for field %r: %s", dialog_field, exc)
 
     def _open_pdf(self) -> None:
         path = self._doc.local_path

@@ -30,8 +30,11 @@ TEXT_DIR      = DATA_DIR / "text"
 OUTPUT_DIR    = DATA_DIR / "output"
 
 # ── Persistence files ──────────────────────────────────────────────────────────
-DOCUMENTS_JSON = DATA_DIR / "documents.json"
-SETTINGS_JSON  = DATA_DIR / "settings.json"
+DOCUMENTS_JSON       = DATA_DIR / "documents.json"
+SETTINGS_JSON        = DATA_DIR / "settings.json"
+SUPPLIER_RULES_JSON  = DATA_DIR / "supplier_rules.json"
+LEARNED_RULES_JSON   = DATA_DIR / "learned_rules.json"
+CORRECTIONS_LOG_JSON = DATA_DIR / "corrections_log.json"
 
 # ── Excel export ───────────────────────────────────────────────────────────────
 EXCEL_OUTPUT_PATH = OUTPUT_DIR / "invoices.xlsx"
