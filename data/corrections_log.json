@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "corrections": [
+    {
+      "field_name": "supplier_name",
+      "original_value": "פנדה הום בעמ",
+      "corrected_value": "שירה לוסטיגר",
+      "drive_file_id": "1xvYhmkyO0zQQfYQPUEGr2mloFyYb5TdX",
+      "file_name": "שירה לוסטיגר- פברואר- חשבונית מס.pdf",
+      "timestamp": "2026-04-09T07:16:59.627368+00:00"
+    },
+    {
+      "field_name": "supplier_name",
+      "original_value": "פנדה הום בעמ",
+      "corrected_value": "שירה לוסטיגר",
+      "drive_file_id": "1xvYhmkyO0zQQfYQPUEGr2mloFyYb5TdX",
+      "file_name": "שירה לוסטיגר- פברואר- חשבונית מס.pdf",
+      "timestamp": "2026-04-09T07:17:25.347077+00:00"
+    },
+    {
+      "field_name": "supplier_name",
+      "original_value": "לוג' מס' חשבון : 1318237",
+      "corrected_value": "אוריין ש.מ בע\"מ",
+      "drive_file_id": "18UD25axX9HyNI0iCaAUU4nHdkCZPXNxJ",
+      "file_name": "פברואר_0026020371חשבונית מס אוריין (1).pdf",
+      "timestamp": "2026-04-09T07:26:58.527662+00:00"
+    }
+  ]
+}

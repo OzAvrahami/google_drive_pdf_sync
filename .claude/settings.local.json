@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs wc:*)",
+      "Bash(python -c \"import sys; sys.path.insert\\(0,''''D:/code/google_drive_pdf_sync''''\\); from app.parsers.pdf_parser import extract_text_from_pdf; print\\(''''import ok''''\\)\")",
+      "Bash(python -m pytest tests/test_text_helpers.py -v)",
+      "Bash(pip install:*)",
+      "Bash(python -c \":*)",
+      "Bash(py:*)",
+      "Bash(python -m pytest tests/test_invoice_parser.py::TestClassifyDocumentType::test_cheshbon_esek_accepted -v)",
+      "Bash(cd:*)",
+      "Bash(touch app/clients/__init__.py app/models/__init__.py app/parsers/__init__.py app/state/__init__.py app/utils/__init__.py app/writers/__init__.py)",
+      "Bash(rmdir app/extractors)",
+      "Bash(grep -E \"\\\\.\\(toml|cfg|ini|yaml|yml\\)$\")",
+      "Bash(python:*)"
+    ]
+  }
+}

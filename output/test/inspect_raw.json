@@ -1,0 +1,338 @@
+[
+  {
+    "file": "26010096 חשבונית מס חודש ינואר גב מערכות(1).pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "שירותי ניהול 16,744.00",
+      "invoice_date": "31/01/2026",
+      "invoice_number": "26010096",
+      "amount": 142770.48
+    },
+    "error": null
+  },
+  {
+    "file": "50094 - חשבונית מס - היפו קמפוס סי אקס חודש ינואר.pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "היפוקמפוס סי אקס בע\"מ",
+      "invoice_date": "01/02/2026",
+      "invoice_number": "50094",
+      "amount": 2655.0
+    },
+    "error": null
+  },
+  {
+    "file": "50171 סלנס טכנולוגיות חשבונית מס חודש נובמבר(1).pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "SELLENCE TECHNOLOGY LTD",
+      "invoice_date": "21/01/2026",
+      "invoice_number": "50171",
+      "amount": 25635.5
+    },
+    "error": null
+  },
+  {
+    "file": "50176-enחשבונית מס סלנס טכנולוגיות חודש דצמבר.pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "SELLENCE TECHNOLOGY LTD",
+      "invoice_date": "21/01/2026",
+      "invoice_number": "50176",
+      "amount": 48362.3
+    },
+    "error": null
+  },
+  {
+    "file": "_SHOPIFY פנדה_484430587.pdf",
+    "doc_type": null,
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "DigitalOcean Invoice 2026 Jan (11666827-538221832).pdf",
+    "doc_type": null,
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "google invoice january 5474709210.pdf",
+    "doc_type": null,
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "GOOGLE INVOICE JANUARY 5489072323.pdf",
+    "doc_type": null,
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "Invoice LOYALTY JANUARY-340185ED-0033.pdf",
+    "doc_type": null,
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "INVOICE_WE WORK JANUARY_1069642.pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "מספר פנימי:0637877122",
+      "invoice_date": "01/02/2026",
+      "invoice_number": "515781219",
+      "amount": 13110.64
+    },
+    "error": null
+  },
+  {
+    "file": "Invoiceהייביז  חשבונית מס חודש דצמבר 6739050.pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "# תיאור כמות מחיר סה\"כ",
+      "invoice_date": "19/01/2026",
+      "invoice_number": "6739050",
+      "amount": 100300.0
+    },
+    "error": null
+  },
+  {
+    "file": "META JANUARY_250830591.pdf",
+    "doc_type": null,
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "supermetrics-invoice-JANUARY.pdf",
+    "doc_type": null,
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "אוקטובר עד ינואר חשבונית מס מרכזת יציל  .PDF",
+    "doc_type": "קבלה",
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "אוקטובר עד ינואר חשבונית מס מרכזת יציל  .PDF",
+    "doc_type": "קבלה",
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "ביזבי חשבונית מס ינואר 50134.pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "Certied Copy",
+      "invoice_date": "02/02/2026",
+      "invoice_number": "50134",
+      "amount": 86593.0
+    },
+    "error": null
+  },
+  {
+    "file": "הייביז תשלום שנתי 6739050.pdf",
+    "doc_type": null,
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "ווידב טכנולוגיות - חשבונית מס 1_2026.pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "העתק נאמן למקור ווידב טכנולוגיות בע\"מ",
+      "invoice_date": "31/01/2026",
+      "invoice_number": "80419",
+      "amount": 16682.84
+    },
+    "error": null
+  },
+  {
+    "file": "וולקנו חשבנית מס חודש ינואר 5061.pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "שנקר אריה ,1 הרצליה לתשלום עד",
+      "invoice_date": "01/02/2026",
+      "invoice_number": "5061",
+      "amount": 590.0
+    },
+    "error": null
+  },
+  {
+    "file": "חודש ינואר 0026011449_חשבונית מס אוריין.PDF",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "לוג' מס' חשבון : 1318237",
+      "invoice_date": "31/01/2026",
+      "invoice_number": "26011449",
+      "amount": 4150.06
+    },
+    "error": null
+  },
+  {
+    "file": "חש בוריס 1.26 מאושרת.pdf",
+    "doc_type": null,
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "חשבונית אוריין חודש ינואר 2026.pdf",
+    "doc_type": null,
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "חשבונית מס אוריאן חודש ינואר 26011700.PDF",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "לוג' מס' חשבון : 1318237",
+      "invoice_date": "31/01/2026",
+      "invoice_number": "26011700",
+      "amount": 1083000.46
+    },
+    "error": null
+  },
+  {
+    "file": "חשבונית מס ביימי ינואר_2600915.pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "פנדה הום בע\"מ",
+      "invoice_date": null,
+      "invoice_number": "DB24",
+      "amount": 26.55
+    },
+    "error": null
+  },
+  {
+    "file": "חשבונית מס חודש ינואר אוריין_0026011452_0001318237_515781219_31012026.PDF",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "לוג' מס' חשבון : 1318237",
+      "invoice_date": "31/01/2026",
+      "invoice_number": "26011452",
+      "amount": 1424.26
+    },
+    "error": null
+  },
+  {
+    "file": "חשבונית מס חודש ינואר הייפ _354337 (1).pdf",
+    "doc_type": "חשבונית מס קבלה",
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "חשבונית מס חודש ינואר הייפ _354337 (1).pdf",
+    "doc_type": "חשבונית מס קבלה",
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "חשבונית מס חודש פברואר אמקור_1106010140.pdf",
+    "doc_type": null,
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "חשבונית מס מרוכזת יציל ספטמבר עד ינואר .PDF",
+    "doc_type": "קבלה",
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "חשבונית מס סלנס טכנולוגיות חודש ינואר 50179.pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "SELLENCE TECHNOLOGY LTD",
+      "invoice_date": "10/02/2026",
+      "invoice_number": "50179",
+      "amount": 12095.0
+    },
+    "error": null
+  },
+  {
+    "file": "חשבונית מס ספארי חרמון חודש ינואר 50097.pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "ספארי חרמון",
+      "invoice_date": "03/02/2026",
+      "invoice_number": "50097",
+      "amount": 3026.7
+    },
+    "error": null
+  },
+  {
+    "file": "חשבונית מס קבלה דצמבר- ביטין.pdf",
+    "doc_type": null,
+    "parsed": null,
+    "error": null
+  },
+  {
+    "file": "חשבונית מס תן ביס חודש ינואר 400144037.pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "# קוד פריט תיאור כמות מחיר סה\"כ",
+      "invoice_date": "31/01/2026",
+      "invoice_number": "400144037",
+      "amount": 4985.0
+    },
+    "error": null
+  },
+  {
+    "file": "חשבונית מרכת יציל ספטמבר עד ינואר 60309 (6).pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "חברת מותג מס' כרטיס כמות הנחת סליקה דמי",
+      "invoice_date": "23/09/2025",
+      "invoice_number": null,
+      "amount": null
+    },
+    "error": null
+  },
+  {
+    "file": "חשונית מס סטודנט גרופ חודש ינואר_11813.pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "מספר הקצאה: 034080663",
+      "invoice_date": "03/02/2026",
+      "invoice_number": "11813",
+      "amount": null
+    },
+    "error": null
+  },
+  {
+    "file": "חשונית מס סטודנט גרופ חודש ינואר_11813.pdf",
+    "doc_type": "חשבונית מס",
+    "parsed": {
+      "document_type": "tax_invoice",
+      "business_name": "מספר הקצאה: 034080663",
+      "invoice_date": "03/02/2026",
+      "invoice_number": "11813",
+      "amount": null
+    },
+    "error": null
+  },
+  {
+    "file": "סיקסק מחשבים חודש ינואר 1_14385.pdf",
+    "doc_type": null,
+    "parsed": null,
+    "error": null
+  }
+]

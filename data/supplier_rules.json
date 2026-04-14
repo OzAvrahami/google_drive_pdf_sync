@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "global": {
+    "reject_patterns": [
+      "address"
+    ],
+    "prefer_keywords": [
+      "בע\"מ",
+      "חברה",
+      "שירותים",
+      "קבלן",
+      "בית"
+    ]
+  },
+  "suppliers": {}
+}
