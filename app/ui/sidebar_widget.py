@@ -75,17 +75,18 @@ class SidebarWidget(QWidget):
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
-    def update_counts(self, counts: dict) -> None:
+    def update_counts(self, counts: dict, suspected_duplicates: int = 0) -> None:
         """Refresh count badges next to each view label.  ``counts`` is the
-        dict returned by ``DocumentStore.count_by_status()``."""
+        dict returned by ``DocumentStore.count_by_status()``.
+        ``suspected_duplicates`` adds to the Needs Attention badge."""
         def _sum(statuses):
             return sum(counts.get(s, 0) for s in statuses)
 
         badges = {
             "dashboard":  None,
             "new":        _sum({"new"}),
-            "attention":  _sum({"needs_review", "failed", "skipped"}),
-            "results":    _sum({"processed", "approved"}),
+            "attention":  _sum({"needs_review", "failed", "skipped"}) + suspected_duplicates,
+            "results":    _sum({"processed", "approved"}) - suspected_duplicates,
             "irrelevant": _sum({"confirmed_irrelevant", "excluded"}),
             "history":    _sum({"exported"}),
         }

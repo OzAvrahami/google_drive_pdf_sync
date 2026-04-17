@@ -19,6 +19,9 @@ Status lifecycle:
                  the "Mark as Irrelevant" action.  Local PDF has been deleted.
                  Recorded in excluded_files.json so future Drive scans skip it.
                  Functionally identical to "excluded" but set by the new UI flow.
+
+Note: is_duplicate_suspected is NOT a status — it is a flag attribute that routes
+      a document into Needs Attention regardless of its workflow status.
 """
 from __future__ import annotations
 
@@ -68,6 +71,14 @@ class Document:
 
     # ── Irrelevant confirmation ─────────────────────────────────────────────────
     confirmed_irrelevant_at: Optional[str] = None
+
+    # ── Manual correction tracking ─────────────────────────────────────────────
+    was_manually_corrected: bool = False
+
+    # ── Duplicate detection ────────────────────────────────────────────────────
+    is_duplicate_suspected: bool = False
+    suspected_duplicate_of: Optional[list] = None   # list of drive_file_ids
+    duplicate_confidence: Optional[str] = None       # 'exact' | 'high'
 
     # ── Metadata ───────────────────────────────────────────────────────────────
     id: str = field(default_factory=lambda: str(uuid.uuid4()))

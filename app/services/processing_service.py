@@ -26,6 +26,7 @@ from app.parsers.invoice_parser import (
 from app.parsers.pdf_parser import extract_text_from_pdf
 from app.services.correction_map_service import load_correction_map
 from app.services.document_store import DocumentStore
+from app.services.duplicate_detection_service import detect_and_mark_duplicate
 from app.utils.pdf_downloader import _download_file, resolve_local_path
 
 logger = logging.getLogger(__name__)
@@ -192,6 +193,10 @@ class ProcessingService:
             doc.status = "processed"
         else:
             doc.status = "needs_review"
+
+        # 8. Duplicate detection — runs after status assignment so the comparison
+        #    pool excludes documents still queued as 'new' in the same batch.
+        detect_and_mark_duplicate(doc, self._store)
 
         self._store.upsert(doc)
 

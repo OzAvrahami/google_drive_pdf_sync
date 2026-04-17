@@ -51,6 +51,77 @@ _RE_PHONE_IL  = re.compile(r'^0[2-9][\d\-\s]{7,10}$')
 _RE_TAX_ID    = re.compile(r'(?:ח["\'.]\s*פ|ת["\'.]\s*ז|עוסק\s*מורשה)\s*[:\s/]?\s*\d{5,}',
                             re.IGNORECASE)
 
+# ── Supplier correction safety classification ─────────────────────────────────
+
+# Entity markers: if the extracted supplier value contains these, the parser
+# found a REAL business/person name in the wrong document role (customer vs.
+# supplier).  Storing this as a global correction key is dangerous because
+# the same entity could legitimately be the supplier on a different invoice.
+_RE_ENTITY_MARKER = re.compile(
+    r'בע["\u05f4]?מ'           # בע"מ / בע״מ  (Ltd)
+    r'|ח["\'.]\s*פ'            # ח.פ  (company registration)
+    r'|ת["\'.]\s*ז'            # ת.ז  (personal ID)
+    r'|עוסק\s*מורשה'           # authorized dealer
+    r'|שותפות'                 # partnership
+    r'|inc\.|ltd\.|llc\.',
+    re.IGNORECASE,
+)
+
+# Document-structure noise: these phrases appear verbatim across many PDFs
+# that share the same template layout.  A single-document correction that
+# maps one of these phrases to a supplier name would fire on every document
+# from that template, injecting the wrong supplier everywhere.
+_RE_DOC_STRUCTURE_NOISE = re.compile(
+    r'(?:^|\b)(?:'
+    r'דף\s*[:\-]?\s*\d'         # דף: 1 / דף 1   (page header)
+    r'|חתום\s+דיגיטלי'          # חתום דיגיטלית  (digital signature line)
+    r'|מסמך\s+ממוחשב'           # מסמך ממוחשב    (computerized document footer)
+    r'|(?:^|\s)מקור(?:\s|$)'    # מקור            (original — standalone)
+    r'|הקצאה\b'                 # הקצאה           (allocation)
+    r'|בגין\b'                  # בגין            (regarding / for the purpose of)
+    r'|עמוד\s+\d'               # עמוד 1          (page N)
+    r'|page\s+\d'               # page 1
+    r')',
+    re.IGNORECASE,
+)
+
+
+def _supplier_correction_safety(extracted_value: str) -> Optional[str]:
+    """
+    Classify whether a supplier_name correction is safe to promote to the
+    global correction_map.
+
+    Returns a human-readable reason string when the correction is RISKY and
+    should be kept as audit log only.
+    Returns None when it IS safe to store as a reusable global rule.
+
+    Safe:   dates, phone numbers, tax IDs, short OCR gibberish specific to
+            one document — unlikely to collide across unrelated invoices.
+
+    Risky:  real entity names (contains בע"מ / ח.פ / etc.) — the parser got
+            the ROLE wrong, not the text.  Document-structure phrases (דף: 1,
+            חתום דיגיטלית) — appear in many PDFs from the same template.
+    """
+    if not extracted_value or not extracted_value.strip():
+        return "empty extracted value"
+
+    if _RE_ENTITY_MARKER.search(extracted_value):
+        return (
+            "contains an entity marker (בע\"מ / ח.פ / etc.) — the parser "
+            "confused document role (customer vs. supplier), not the text; "
+            "storing this key globally would contaminate documents where this "
+            "entity is the correct supplier"
+        )
+
+    if _RE_DOC_STRUCTURE_NOISE.search(extracted_value):
+        return (
+            "matches a document-structure noise pattern (page header, "
+            "digital-signature line, etc.) — this phrase appears in many "
+            "PDFs sharing the same template and must not become a global rule"
+        )
+
+    return None  # Safe to promote to global correction_map
+
 # Fields whose extracted values should be checked for known-bad patterns.
 # Maps UI/Document field name → parser extracted_data key.
 _FIELD_ALIAS: dict[str, str] = {
@@ -204,8 +275,32 @@ def _maybe_create_rule(correction: Correction) -> Optional[str]:
 def _record_positive_correction(correction: Correction) -> None:
     """
     Store the correction in correction_map.json so the parser can apply it on
-    the next run.  This fires on the *first* correction — no threshold.
+    the next run.
+
+    For supplier_name specifically: a safety classification is applied before
+    writing to the correction_map.  Corrections whose extracted value is a
+    real entity name or a document-structure artifact are kept in the audit
+    log only — they are NOT promoted to the global correction_map — to prevent
+    cross-document contamination.
+
+    All other fields (invoice_date, invoice_number, total) are stored
+    unconditionally: their values are precise enough that collisions across
+    unrelated documents are negligible.
     """
+    if correction.field_name == "supplier_name":
+        risk_reason = _supplier_correction_safety(correction.original_value)
+        if risk_reason:
+            logger.info(
+                "Supplier correction kept as audit-log only "
+                "(not promoted to correction_map): "
+                "file=%r  extracted=%r → correct=%r  |  reason: %s",
+                correction.file_name,
+                correction.original_value,
+                correction.corrected_value,
+                risk_reason,
+            )
+            return  # Already appended to corrections_log by _append_correction()
+
     try:
         from app.services.correction_map_service import record_correction
         record_correction(

@@ -115,10 +115,19 @@ _VIEW_STATUSES: dict[str, frozenset] = {
 
 # Sub-filters within the Needs Attention view: (key, Hebrew label, statuses)
 _ATTENTION_SUB_FILTERS: list[tuple] = [
-    ("all",     "הכל",                frozenset({"needs_review", "failed", "skipped"})),
-    ("review",  "לבדיקה",             frozenset({"needs_review"})),
-    ("failed",  "שגיאה",              frozenset({"failed"})),
-    ("skipped", "חשוד — לא רלוונטי", frozenset({"skipped"})),
+    ("all",       "הכל",                frozenset({"needs_review", "failed", "skipped"})),
+    ("review",    "לבדיקה",             frozenset({"needs_review"})),
+    ("failed",    "שגיאה",              frozenset({"failed"})),
+    ("skipped",   "חשוד — לא רלוונטי", frozenset({"skipped"})),
+    ("duplicate", "כפול",               frozenset()),
+]
+
+# Sub-filters within the Processed (Results) view: (key, Hebrew label)
+_RESULTS_SUB_FILTERS: list[tuple] = [
+    ("all",       "הכל"),
+    ("auto",      "עובד אוטומטית"),
+    ("corrected", "תוקן ידנית"),
+    ("approved",  "מאושר"),
 ]
 
 # Statuses that cannot be marked irrelevant (already finalised)
@@ -145,6 +154,8 @@ class MainWindow(QMainWindow):
         self._active_view              = "new"
         self._view_statuses: Optional[frozenset] = _VIEW_STATUSES["new"]
         self._attention_sub_filter: frozenset = _VIEW_STATUSES["attention"]
+        self._attention_sub_filter_key: str = "all"
+        self._results_sub_filter_key: str   = "all"
         self._active_workers: list     = []
 
         self.setWindowTitle("כלי חשבונאות — מסמכים מ-Google Drive")
@@ -210,6 +221,11 @@ class MainWindow(QMainWindow):
         self._attention_bar = self._build_attention_bar()
         self._attention_bar.setVisible(False)
         right_vbox.addWidget(self._attention_bar)
+
+        # Results sub-filter bar (hidden until results view is active)
+        self._results_bar = self._build_results_bar()
+        self._results_bar.setVisible(False)
+        right_vbox.addWidget(self._results_bar)
 
         # Stacked widget
         self._stack = QStackedWidget()
@@ -405,12 +421,41 @@ class MainWindow(QMainWindow):
                 item.setFont(QFont("Arial", 9))
 
     def _passes_filter(self, doc: Document) -> bool:
-        # View-based status filter (attention view uses its own sub-filter)
+        is_dup = getattr(doc, "is_duplicate_suspected", False)
+
+        # View-based status filter
         if self._active_view == "attention":
-            if doc.status not in self._attention_sub_filter:
+            key = self._attention_sub_filter_key
+            if key == "duplicate":
+                if not is_dup:
+                    return False
+            elif key == "all":
+                # Show status-matched docs OR suspected duplicates
+                if doc.status not in self._attention_sub_filter and not is_dup:
+                    return False
+            else:
+                if doc.status not in self._attention_sub_filter:
+                    return False
+        elif self._view_statuses is not None:
+            if doc.status not in self._view_statuses:
                 return False
-        elif self._view_statuses is not None and doc.status not in self._view_statuses:
-            return False
+            # Suspected duplicates are redirected to Needs Attention
+            if is_dup:
+                return False
+
+        # Results sub-filter (applied after status check)
+        if self._active_view == "results":
+            key = self._results_sub_filter_key
+            if key == "auto":
+                if getattr(doc, "was_manually_corrected", False) or doc.status == "approved":
+                    return False
+            elif key == "corrected":
+                if not getattr(doc, "was_manually_corrected", False):
+                    return False
+            elif key == "approved":
+                if doc.status != "approved":
+                    return False
+
         # Full-text search (file name, supplier, invoice number)
         q = self._search.text().strip().lower()
         if q:
@@ -449,9 +494,10 @@ class MainWindow(QMainWindow):
     def _on_view_changed(self, view: str) -> None:
         self._active_view = view
         is_attention = (view == "attention")
+        is_results   = (view == "results")
 
-        # Show/hide the sub-filter bar and the Reason column together
         self._attention_bar.setVisible(is_attention)
+        self._results_bar.setVisible(is_results)
         self._table.setColumnHidden(_COL_REASON, not is_attention)
 
         if view == "dashboard":
@@ -460,14 +506,20 @@ class MainWindow(QMainWindow):
         else:
             self._view_statuses = _VIEW_STATUSES.get(view)
             if is_attention:
-                # Reset sub-filter to "All" when entering the view
-                self._attention_sub_filter = _VIEW_STATUSES["attention"]
+                self._attention_sub_filter     = _VIEW_STATUSES["attention"]
+                self._attention_sub_filter_key = "all"
                 for k, btn in self._attention_btns.items():
+                    btn.setChecked(k == "all")
+            if is_results:
+                self._results_sub_filter_key = "all"
+                for k, btn in self._results_btns.items():
                     btn.setChecked(k == "all")
             self._stack.setCurrentIndex(1)
             self._refresh_table()
             if is_attention:
                 self._update_attention_counts()
+            if is_results:
+                self._update_results_counts()
 
     def _build_attention_bar(self) -> QWidget:
         """Horizontal sub-filter chip bar shown inside the Needs Attention view."""
@@ -513,25 +565,113 @@ class MainWindow(QMainWindow):
 
     def _set_attention_sub_filter(self, key: str, statuses: frozenset) -> None:
         """Switch the active sub-filter and refresh the table."""
-        self._attention_sub_filter = statuses
+        self._attention_sub_filter_key = key
+        self._attention_sub_filter     = statuses
         for k, btn in self._attention_btns.items():
             btn.setChecked(k == key)
         self._refresh_table()
+        self._update_attention_counts()
 
     def _update_attention_counts(self) -> None:
         """Refresh count badges on each sub-filter chip."""
         if not hasattr(self, "_attention_btns"):
             return
-        counts = self._store.count_by_status()
+        all_docs = self._store.all()
+        counts   = self._store.count_by_status()
+        _attn_statuses = frozenset({"needs_review", "failed", "skipped"})
+        # Duplicates already in the attention pool are counted by count_by_status().
+        # Only add duplicates whose status is outside the attention pool (e.g. "processed").
+        dup_extra = sum(
+            1 for d in all_docs
+            if getattr(d, "is_duplicate_suspected", False)
+            and d.status not in _attn_statuses
+        )
+        dup_total = sum(1 for d in all_docs if getattr(d, "is_duplicate_suspected", False))
         badges: dict[str, int] = {
-            "all":     sum(counts.get(s, 0) for s in ("needs_review", "failed", "skipped")),
-            "review":  counts.get("needs_review", 0),
-            "failed":  counts.get("failed", 0),
-            "skipped": counts.get("skipped", 0),
+            "all":       sum(counts.get(s, 0) for s in _attn_statuses) + dup_extra,
+            "review":    counts.get("needs_review", 0),
+            "failed":    counts.get("failed", 0),
+            "skipped":   counts.get("skipped", 0),
+            "duplicate": dup_total,
         }
         base_labels = {k: lbl for k, lbl, _ in _ATTENTION_SUB_FILTERS}
         for key, btn in self._attention_btns.items():
             n    = badges.get(key, 0)
+            base = base_labels.get(key, key)
+            btn.setText(f"{base}  ({n})" if n else base)
+
+    def _build_results_bar(self) -> QWidget:
+        """Horizontal sub-filter chip bar shown inside the Processed view."""
+        bar = QWidget()
+        bar.setStyleSheet(
+            "QWidget { background: #F1F8E9; border-bottom: 1px solid #C5E1A5; }"
+        )
+        hbox = QHBoxLayout(bar)
+        hbox.setContentsMargins(8, 4, 8, 4)
+        hbox.setSpacing(6)
+
+        icon = QLabel("✅")
+        icon.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        icon.setStyleSheet("color: #33691E; background: transparent;")
+        hbox.addWidget(icon)
+
+        label = QLabel("מעובד:")
+        label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        label.setStyleSheet("color: #33691E; background: transparent;")
+        hbox.addWidget(label)
+
+        hbox.addSpacing(6)
+
+        self._results_btns: dict[str, QPushButton] = {}
+        for key, lbl in _RESULTS_SUB_FILTERS:
+            btn = QPushButton(lbl)
+            btn.setCheckable(True)
+            btn.setFixedHeight(24)
+            btn.setMinimumWidth(80)
+            btn.setStyleSheet(
+                "QPushButton { background:#EEEEEE; border:1px solid #BDBDBD;"
+                " border-radius:12px; padding:0 10px; font-size:9pt; }"
+                "QPushButton:checked { background:#2E7D32; color:white; border-color:#2E7D32; }"
+                "QPushButton:hover:!checked { background:#E8F5E9; }"
+            )
+            btn.clicked.connect(lambda _, k=key: self._set_results_sub_filter(k))
+            self._results_btns[key] = btn
+            hbox.addWidget(btn)
+
+        self._results_btns["all"].setChecked(True)
+        hbox.addStretch()
+        return bar
+
+    def _set_results_sub_filter(self, key: str) -> None:
+        """Switch the active results sub-filter and refresh the table."""
+        self._results_sub_filter_key = key
+        for k, btn in self._results_btns.items():
+            btn.setChecked(k == key)
+        self._refresh_table()
+        self._update_results_counts()
+
+    def _update_results_counts(self) -> None:
+        """Refresh count badges on each results sub-filter chip."""
+        if not hasattr(self, "_results_btns"):
+            return
+        all_docs     = self._store.all()
+        results_docs = [
+            d for d in all_docs
+            if d.status in ("processed", "approved")
+            and not getattr(d, "is_duplicate_suspected", False)
+        ]
+        counts = {
+            "all":       len(results_docs),
+            "auto":      sum(1 for d in results_docs
+                             if not getattr(d, "was_manually_corrected", False)
+                             and d.status == "processed"),
+            "corrected": sum(1 for d in results_docs
+                             if getattr(d, "was_manually_corrected", False)),
+            "approved":  sum(1 for d in results_docs if d.status == "approved"),
+        }
+        base_labels = {k: lbl for k, lbl in _RESULTS_SUB_FILTERS}
+        for key, btn in self._results_btns.items():
+            n    = counts.get(key, 0)
             base = base_labels.get(key, key)
             btn.setText(f"{base}  ({n})" if n else base)
 
@@ -568,6 +708,20 @@ class MainWindow(QMainWindow):
         irr_act.triggered.connect(self._on_mark_irrelevant)
         menu.addAction(irr_act)
 
+        # Duplicate actions — shown when at least one selected doc is suspected duplicate
+        if n == 1:
+            drive_id = ids[0]
+            doc = self._store.get_by_drive_id(drive_id)
+            if doc and getattr(doc, "is_duplicate_suspected", False):
+                menu.addSeparator()
+                conf_dup_act = QAction("אשר כפול — העבר ללא-רלוונטי", self)
+                conf_dup_act.triggered.connect(self._on_confirm_duplicate)
+                menu.addAction(conf_dup_act)
+
+                not_dup_act = QAction("לא כפול — החזר לתצוגה הרגילה", self)
+                not_dup_act.triggered.connect(self._on_not_duplicate)
+                menu.addAction(not_dup_act)
+
         menu.exec(self._table.viewport().mapToGlobal(pos))
 
     # ── Status bar ─────────────────────────────────────────────────────────────
@@ -588,11 +742,22 @@ class MainWindow(QMainWindow):
 
         # Update sidebar badges
         if hasattr(self, "_sidebar"):
-            self._sidebar.update_counts(counts)
+            # Only count duplicates whose status is in the results pool —
+            # those are the ones being redirected out of Results into Attention.
+            # Duplicates already in the attention pool (needs_review/failed/skipped)
+            # are already counted via count_by_status() and must not be added again.
+            dup_from_results = sum(
+                1 for d in self._store.all()
+                if getattr(d, "is_duplicate_suspected", False)
+                and d.status in ("processed", "approved")
+            )
+            self._sidebar.update_counts(counts, suspected_duplicates=dup_from_results)
 
-        # Update sub-filter counts when attention view is active
+        # Update sub-filter counts when attention or results view is active
         if hasattr(self, "_attention_btns") and self._active_view == "attention":
             self._update_attention_counts()
+        if hasattr(self, "_results_btns") and self._active_view == "results":
+            self._update_results_counts()
 
     def _set_progress(self, msg: str) -> None:
         self._progress_label.setText(msg)
@@ -823,6 +988,63 @@ class MainWindow(QMainWindow):
         n = len(eligible) - len(errors)
         self._set_progress(f"{n} מסמך/ים סומנו כלא-רלוונטיים.")
 
+    # ── Duplicate actions ──────────────────────────────────────────────────────
+
+    def _on_confirm_duplicate(self) -> None:
+        """Confirm selected document is a duplicate → treat as confirmed_irrelevant."""
+        drive_id = self._selected_drive_id()
+        if not drive_id:
+            return
+        doc = self._store.get_by_drive_id(drive_id)
+        if not doc:
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "אישור כפול",
+            f"האם לאשר שהמסמך הוא כפול ולהעביר אותו ללא-רלוונטי?\n\n"
+            f"{doc.file_name}\n\n"
+            "• הקובץ המקומי יימחק מהדיסק.\n"
+            "• המסמך יועבר לתצוגת 'לא רלוונטי'.\n"
+            "• הפעולה אינה הפיכה.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            from app.services.exclusion_service import confirm_irrelevant
+            confirm_irrelevant(doc)
+            doc.status = "confirmed_irrelevant"
+            doc.confirmed_irrelevant_at = datetime.now(timezone.utc).isoformat()
+            doc.local_path = ""
+            doc.is_duplicate_suspected = False
+            self._store.upsert(doc)
+        except Exception as exc:
+            logger.error("confirm_duplicate failed for %s: %s", doc.drive_file_id, exc)
+            QMessageBox.warning(self, "שגיאה", f"לא ניתן לאשר כפול:\n{exc}")
+            return
+
+        self._refresh_table()
+        self._set_progress("המסמך הכפול הועבר ללא-רלוונטי.")
+
+    def _on_not_duplicate(self) -> None:
+        """Clear duplicate suspicion — document returns to its normal view."""
+        drive_id = self._selected_drive_id()
+        if not drive_id:
+            return
+        doc = self._store.get_by_drive_id(drive_id)
+        if not doc:
+            return
+
+        doc.is_duplicate_suspected  = False
+        doc.suspected_duplicate_of  = None
+        doc.duplicate_confidence    = None
+        self._store.upsert(doc)
+        self._refresh_table()
+        self._set_progress("סימון הכפול הוסר — המסמך חזר לתצוגה הרגילה.")
+
     # ── Review dialog ──────────────────────────────────────────────────────────
 
     def _on_row_double_click(self) -> None:
@@ -892,6 +1114,14 @@ def _get_attention_reason(doc: Document) -> str:
             doc_type = msg[len(prefix):]
             return f"סווג אוטומטית: {doc_type}"
         return msg or "סווג אוטומטית כלא-רלוונטי"
+
+    if getattr(doc, "is_duplicate_suspected", False):
+        conf = getattr(doc, "duplicate_confidence", None)
+        conf_label = "התאמה מדויקת" if conf == "exact" else "ביטחון גבוה"
+        dup_ids = getattr(doc, "suspected_duplicate_of", None) or []
+        if dup_ids:
+            return f"כפול חשוד ({conf_label}) — כפול של מסמך קיים"
+        return f"כפול חשוד ({conf_label})"
 
     if doc.status == "needs_review":
         _FIELD_LABELS = {

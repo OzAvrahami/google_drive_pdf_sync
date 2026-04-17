@@ -274,6 +274,8 @@ class ReviewDialog(QDialog):
     def _save(self) -> None:
         corrections = self._collect_corrections()
         self._doc.corrected_data = {k: v for k, v in corrections.items() if v is not None}
+        if self._doc.corrected_data:
+            self._doc.was_manually_corrected = True
         self._doc.status = self._status_combo.currentData()
         self._store.upsert(self._doc)
         self._record_corrections_for_learning(corrections)
@@ -283,6 +285,8 @@ class ReviewDialog(QDialog):
     def _approve(self) -> None:
         corrections = self._collect_corrections()
         self._doc.corrected_data = {k: v for k, v in corrections.items() if v is not None}
+        if self._doc.corrected_data:
+            self._doc.was_manually_corrected = True
         self._doc.status = "approved"
         self._store.upsert(self._doc)
         self._record_corrections_for_learning(corrections)

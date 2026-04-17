@@ -159,12 +159,25 @@ _RE_BE_AM   = re.compile(rf'בע[{_Q}]מ')
 _RE_CUSTOMER_SECTION = re.compile(r'לכבוד|לידי|שם\s+הלקוח|For\s+billing|Bill\s+To', re.IGNORECASE)
 # Fix 3: added ^# (table header rows), מספר\s+X: (reference-number lines), שם\s*: (customer label)
 _RE_SKIP_LINE = re.compile(
-    r'^(?:עוסק|ח\.פ|ת\.ז|לכבוד|לידי|טלפון|מקור|עמוד|הופק|תאריך|לתשלום|'
+    r'^(?:בגין|עוסק|ח\.פ|ת\.ז|לכבוד|לידי|טלפון|מקור|עמוד|הופק|תאריך|לתשלום|'
     r'כתובת|נייד|אימייל|פירוט|תאור|פרוט|כמות|הקצאה|שם\s*:|'
     r'מספר\s+(?:פנימי|הקצאה|עוסק|לקוח|חשבון)\b|'
     r'#|'
     r'page\b|invoice\s+#|tax\s+id|billing|from\s+invoice|bill\s+to|'
     r'total|subtotal|created|date\b|due\b|powered\s+by|http|www\.|[a-z0-9._%+\-]+@)',
+    re.IGNORECASE,)
+
+# Values in an extracted supplier field that contain these markers indicate
+# the parser found a real entity name in the wrong role (customer vs. supplier).
+# Applying a global correction_map lookup on such values would contaminate
+# documents where the same entity IS the correct supplier.
+_RE_ENTITY_MARKER = re.compile(
+    r'בע["\u05f4]?מ'           # בע"מ / בע״מ  (Ltd)
+    r'|ח["\'.]\s*פ'            # ח.פ  (company registration)
+    r'|ת["\'.]\s*ז'            # ת.ז  (personal ID)
+    r'|עוסק\s*מורשה'           # authorized dealer
+    r'|שותפות'                 # partnership
+    r'|inc\.|ltd\.|llc\.',
     re.IGNORECASE,
 )
 _RE_TRAILING_NOISE = re.compile(
@@ -410,6 +423,19 @@ def _apply_corrections(result: dict, correction_map: dict) -> None:
     for parser_key, correction_field in _PARSER_TO_CORRECTION_FIELD.items():
         extracted_val = result.get(parser_key)
         if extracted_val is None:
+            continue
+
+        # Defense-in-depth: never look up a supplier correction when the
+        # extracted value contains an entity marker (בע"מ, ח.פ, etc.).
+        # The parser confused the document role (customer vs. supplier) — not
+        # the text.  Applying a global correction here would contaminate other
+        # documents where this entity is the correct supplier.
+        if parser_key == "business_name" and _RE_ENTITY_MARKER.search(str(extracted_val)):
+            logger.debug(
+                "Skipping correction_map lookup for supplier %r — "
+                "contains entity marker; role confusion, not text error.",
+                extracted_val,
+            )
             continue
 
         learned = lookup_correction(

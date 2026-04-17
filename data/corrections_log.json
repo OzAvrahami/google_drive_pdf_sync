@@ -112,6 +112,30 @@
       "drive_file_id": "1169nDdn6W5k-zoDmb7IZQe9M6ISNIlx5",
       "file_name": "דרישת תשלום #1010 מאת יעל רותם.pdf",
       "timestamp": "2026-04-17T10:51:53.069988+00:00"
+    },
+    {
+      "field_name": "supplier_name",
+      "original_value": "מספר העמודים: 2 מתוך 2",
+      "corrected_value": "DHL Express",
+      "drive_file_id": "1Hj9S4lppDevUqZ3dFHjfjGNFQf-DYJ2k",
+      "file_name": "DHL חשבונית מס חודש פברואר 9361623.pdf",
+      "timestamp": "2026-04-17T11:40:38.372233+00:00"
+    },
+    {
+      "field_name": "invoice_number",
+      "original_value": "",
+      "corrected_value": "DHL9361623",
+      "drive_file_id": "1Hj9S4lppDevUqZ3dFHjfjGNFQf-DYJ2k",
+      "file_name": "DHL חשבונית מס חודש פברואר 9361623.pdf",
+      "timestamp": "2026-04-17T11:40:38.381282+00:00"
+    },
+    {
+      "field_name": "total",
+      "original_value": "305.0",
+      "corrected_value": "1039.43",
+      "drive_file_id": "1Hj9S4lppDevUqZ3dFHjfjGNFQf-DYJ2k",
+      "file_name": "DHL חשבונית מס חודש פברואר 9361623.pdf",
+      "timestamp": "2026-04-17T11:40:38.388059+00:00"
     }
   ]
 }

@@ -13481,7 +13481,7 @@
       "folder_path": "פברואר 2026/חשבוניות ששולמו בכ\"א ",
       "local_path": "D:\\code\\google_drive_pdf_sync\\data\\downloads\\פברואר 2026\\חשבוניות ששולמו בכ_א\\DHL חשבונית מס חודש פברואר 9361623.pdf",
       "raw_text_path": "D:\\code\\google_drive_pdf_sync\\data\\text\\1Hj9S4lppDevUqZ3dFHjfjGNFQf-DYJ2k.txt",
-      "status": "needs_review",
+      "status": "approved",
       "confidence": 0.5,
       "supplier_name": "מספר העמודים: 2 מתוך 2",
       "invoice_number": null,
@@ -13507,13 +13507,18 @@
           "address_score": 10
         }
       },
-      "corrected_data": {},
+      "corrected_data": {
+        "supplier_name": "DHL Express",
+        "invoice_number": "DHL9361623",
+        "invoice_date": "03/02/2026",
+        "total": 1039.43
+      },
       "error_message": null,
       "exported_to_excel": false,
       "confirmed_irrelevant_at": null,
       "id": "e887efa4-d186-4eef-ba35-0e0e064a8731",
       "created_at": "2026-04-15T19:43:17.778283+00:00",
-      "updated_at": "2026-04-17T09:22:39.365638+00:00"
+      "updated_at": "2026-04-17T11:40:38.352922+00:00"
     },
     {
       "drive_file_id": "1U1t68cXZotc-pbOzymA7p5C_3ybdvwYX",
