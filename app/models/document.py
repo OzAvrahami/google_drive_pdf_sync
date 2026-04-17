@@ -8,6 +8,17 @@ Status lifecycle:
   failed       — exception during download or parsing
   approved     — accountant has reviewed and signed off
   exported     — included in Excel export
+  skipped      — system auto-classified as not relevant (receipt, supplier form,
+                 etc.).  Local PDF is preserved.  Reversible — accountant can
+                 review the raw text and reclassify.  Reason in error_message.
+  excluded     — user-confirmed permanent exclusion (legacy name).  Local PDF has
+                 been deleted.  Recorded in excluded_files.json so future Drive
+                 scans do not re-download or re-process this file.  Never exported.
+                 Old records keep this status; new code produces confirmed_irrelevant.
+  confirmed_irrelevant — user explicitly confirmed the document is irrelevant via
+                 the "Mark as Irrelevant" action.  Local PDF has been deleted.
+                 Recorded in excluded_files.json so future Drive scans skip it.
+                 Functionally identical to "excluded" but set by the new UI flow.
 """
 from __future__ import annotations
 
@@ -54,6 +65,9 @@ class Document:
 
     # ── Export tracking ────────────────────────────────────────────────────────
     exported_to_excel: bool = False
+
+    # ── Irrelevant confirmation ─────────────────────────────────────────────────
+    confirmed_irrelevant_at: Optional[str] = None
 
     # ── Metadata ───────────────────────────────────────────────────────────────
     id: str = field(default_factory=lambda: str(uuid.uuid4()))

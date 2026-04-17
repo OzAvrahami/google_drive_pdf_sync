@@ -45,10 +45,11 @@ class ScanWorker(QThread):
 class ProcessWorker(QThread):
     """Downloads and parses all documents with status 'new'."""
 
-    progress = Signal(str)
-    step     = Signal(int, int, str)   # current, total, filename
-    finished = Signal(dict)
-    error    = Signal(str)
+    progress    = Signal(str)
+    step        = Signal(int, int, str)   # current, total, filename
+    doc_updated = Signal(str)             # drive_file_id — emitted after each doc
+    finished    = Signal(dict)
+    error       = Signal(str)
 
     def __init__(self, store: DocumentStore) -> None:
         super().__init__()
@@ -60,6 +61,7 @@ class ProcessWorker(QThread):
             summary = svc.process_new(
                 progress=self.progress.emit,
                 step_callback=self.step.emit,
+                doc_updated_callback=self.doc_updated.emit,
             )
             self.finished.emit(summary)
         except Exception as exc:
@@ -71,6 +73,7 @@ class RetryWorker(QThread):
     """Re-processes a single document regardless of its current status."""
 
     progress = Signal(str)
+    step     = Signal(int, int, str)   # current, total, filename
     finished = Signal(dict)
     error    = Signal(str)
 
@@ -86,11 +89,72 @@ class RetryWorker(QThread):
                 self.error.emit(f"Document not found: {self._drive_file_id}")
                 return
             self.progress.emit(f"Retrying: {doc.file_name}…")
+            self.step.emit(0, 1, doc.file_name)
             svc = ProcessingService(self._store)
             svc.retry(doc)
+            self.step.emit(1, 1, doc.file_name)
             self.finished.emit({"retried": doc.file_name, "status": doc.status})
         except Exception as exc:
             logger.exception("RetryWorker error: %s", exc)
+            self.error.emit(str(exc))
+
+
+class BulkProcessWorker(QThread):
+    """Re-processes a specific list of documents identified by drive_file_id."""
+
+    progress = Signal(str)
+    step     = Signal(int, int, str)   # current, total, filename
+    finished = Signal(dict)
+    error    = Signal(str)
+
+    def __init__(self, store: DocumentStore, drive_file_ids: list) -> None:
+        super().__init__()
+        self._store          = store
+        self._drive_file_ids = list(drive_file_ids)
+
+    def run(self) -> None:
+        try:
+            from app.clients.drive_client import get_drive_service
+            self.progress.emit("Authenticating with Google Drive…")
+            drive_service, _ = get_drive_service()
+
+            svc   = ProcessingService(self._store)
+            total = len(self._drive_file_ids)
+            success = needs_review = failed = skipped = 0
+
+            for i, drive_id in enumerate(self._drive_file_ids, 1):
+                doc = self._store.get_by_drive_id(drive_id)
+                if doc is None:
+                    skipped += 1
+                    continue
+                self.progress.emit(f"Processing {i}/{total}: {doc.file_name}")
+                self.step.emit(i, total, doc.file_name)
+                try:
+                    svc.retry(doc, drive_service=drive_service)
+                    if doc.status == "processed":
+                        success += 1
+                    elif doc.status == "skipped":
+                        skipped += 1
+                    else:
+                        needs_review += 1
+                except Exception as exc:
+                    logger.exception(
+                        "BulkProcessWorker error on %s: %s", doc.file_name, exc
+                    )
+                    doc.status = "failed"
+                    doc.error_message = str(exc)
+                    self._store.upsert(doc)
+                    failed += 1
+
+            self.finished.emit({
+                "total":        total,
+                "success":      success,
+                "needs_review": needs_review,
+                "failed":       failed,
+                "skipped":      skipped,
+            })
+        except Exception as exc:
+            logger.exception("BulkProcessWorker fatal error: %s", exc)
             self.error.emit(str(exc))
 
 

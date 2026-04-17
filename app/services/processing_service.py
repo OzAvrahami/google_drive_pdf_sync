@@ -18,15 +18,21 @@ from googleapiclient.http import MediaIoBaseDownload
 
 from app.config import DOWNLOADS_DIR, TEXT_DIR
 from app.models.document import Document
-from app.parsers.invoice_parser import parse_invoice_text
+from app.parsers.invoice_parser import (
+    classify_document_type,
+    parse_invoice_text,
+    EXCLUDED_DOCUMENT_TYPES,
+)
 from app.parsers.pdf_parser import extract_text_from_pdf
+from app.services.correction_map_service import load_correction_map
 from app.services.document_store import DocumentStore
 from app.utils.pdf_downloader import _download_file, resolve_local_path
 
 logger = logging.getLogger(__name__)
 
-Progress     = Callable[[str], None]
-StepCallback = Callable[[int, int, str], None]
+Progress           = Callable[[str], None]
+StepCallback       = Callable[[int, int, str], None]
+DocUpdatedCallback = Callable[[str], None]
 
 # Non-supplier fields, each worth 25 % of the total score.
 _BASE_FIELDS = ("invoice_date", "invoice_number", "amount")
@@ -42,6 +48,7 @@ class ProcessingService:
         progress: Optional[Progress] = None,
         drive_service=None,
         step_callback: Optional[StepCallback] = None,
+        doc_updated_callback: Optional[DocUpdatedCallback] = None,
     ) -> dict:
         """
         Process all documents with status "new".
@@ -80,6 +87,8 @@ class ProcessingService:
                 doc.error_message = str(exc)
                 self._store.upsert(doc)
                 failed += 1
+            if doc_updated_callback:
+                doc_updated_callback(doc.drive_file_id)
 
         summary = {
             "total": len(docs),
@@ -91,7 +100,12 @@ class ProcessingService:
         return summary
 
     def retry(self, doc: Document, drive_service=None) -> None:
-        """Re-process a single document (any status)."""
+        """Re-process a single document (any status except 'excluded'/'confirmed_irrelevant')."""
+        if doc.status in ("excluded", "confirmed_irrelevant"):
+            raise ValueError(
+                f"Cannot retry permanently excluded document: {doc.file_name!r}. "
+                "Remove the exclusion registry entry to re-enable this file."
+            )
         if drive_service is None:
             from app.clients.drive_client import get_drive_service
             drive_service, _ = get_drive_service()
@@ -102,6 +116,8 @@ class ProcessingService:
     # ── Internal ───────────────────────────────────────────────────────────────
 
     def _process_one(self, doc: Document, service) -> None:
+        logger.info("Processing started: %s", doc.file_name)
+
         # 1. Download PDF
         local_path = self._download(doc, service)
         doc.local_path = str(local_path)
@@ -115,9 +131,41 @@ class ProcessingService:
         text_path.write_text(raw_text, encoding="utf-8")
         doc.raw_text_path = str(text_path)
 
-        # 4. Parse invoice fields
-        parsed = parse_invoice_text(raw_text)
+        # 4. Classify document type — skip immediately if excluded.
+        doc_type = classify_document_type(raw_text)
+        if doc_type in EXCLUDED_DOCUMENT_TYPES:
+            logger.info(
+                "Skipping %s — excluded document type: %r",
+                doc.file_name, doc_type,
+            )
+            doc.status        = "skipped"
+            doc.error_message = f"מסמך לא רלוונטי: {doc_type}"
+            doc.extracted_data = {"document_type": doc_type}
+            self._store.upsert(doc)
+            return
+
+        # 5. Load correction map — applied as a post-processing layer in the parser.
+        #    corrected_data is human-verified truth and is never overwritten here.
+        correction_map = load_correction_map()
+        logger.debug(
+            "Correction map loaded for %s: %d field(s) with mappings.",
+            doc.file_name,
+            len(correction_map.get("fields", {})),
+        )
+
+        # 6. Parse invoice fields (with learned corrections applied automatically)
+        logger.debug("Parsing invoice text for: %s", doc.file_name)
+        parsed = parse_invoice_text(raw_text, correction_map=correction_map)
         doc.extracted_data = parsed or {}
+
+        logger.info(
+            "Parse result for %s: supplier=%r date=%r number=%r amount=%r",
+            doc.file_name,
+            (parsed or {}).get("business_name"),
+            (parsed or {}).get("invoice_date"),
+            (parsed or {}).get("invoice_number"),
+            (parsed or {}).get("amount"),
+        )
 
         if parsed:
             doc.supplier_name  = parsed.get("business_name")
@@ -126,7 +174,7 @@ class ProcessingService:
             raw_amount         = parsed.get("amount")
             doc.total = float(raw_amount) if raw_amount is not None else None
 
-        # 5. Confidence & status
+        # 7. Confidence & status
         doc.confidence = _confidence(parsed)
 
         # If the supplier was rejected (e.g. it was an address) and no valid

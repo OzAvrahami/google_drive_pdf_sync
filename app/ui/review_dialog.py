@@ -11,8 +11,6 @@ The accountant can:
   - Open the local PDF with the system viewer
 """
 import logging
-import os
-import sys
 from pathlib import Path
 from typing import Optional
 
@@ -48,15 +46,21 @@ _EDITABLE_STATUSES = [
     "failed",
     "approved",
     "exported",
+    "skipped",
+    "excluded",
+    "confirmed_irrelevant",
 ]
 
 _STATUS_LABELS = {
-    "new":          "חדש",
-    "processed":    "עובד",
-    "needs_review": "לבדיקה",
-    "failed":       "שגיאה",
-    "approved":     "מאושר",
-    "exported":     "יוצא",
+    "new":                  "חדש",
+    "processed":            "עובד",
+    "needs_review":         "לבדיקה",
+    "failed":               "שגיאה",
+    "approved":             "מאושר",
+    "exported":             "יוצא",
+    "skipped":              "חשוד — לא רלוונטי",
+    "excluded":             "הוחרג (ישן)",
+    "confirmed_irrelevant": "לא רלוונטי (מאושר)",
 }
 
 
@@ -181,6 +185,22 @@ class ReviewDialog(QDialog):
         )
         approve_btn.clicked.connect(self._approve)
 
+        # Confirm irrelevant — destructive, disabled for already-excluded docs.
+        self._exclude_btn = QPushButton("סמן כלא-רלוונטי ✕")
+        self._exclude_btn.setToolTip(
+            "מסמן את המסמך כלא-רלוונטי לצמיתות.\n"
+            "הקובץ המקומי יימחק וסריקות Drive עתידיות לא ירשמו אותו מחדש."
+        )
+        self._exclude_btn.setStyleSheet(
+            "QPushButton { background:#D32F2F; color:white; font-weight:bold;"
+            " padding:6px 14px; border-radius:4px; }"
+            "QPushButton:hover { background:#B71C1C; }"
+            "QPushButton:disabled { background:#BDBDBD; color:#757575; }"
+        )
+        self._exclude_btn.clicked.connect(self._confirm_exclusion)
+        if self._doc.status in ("excluded", "confirmed_irrelevant"):
+            self._exclude_btn.setEnabled(False)
+
         save_btn = QPushButton("שמור תיקונים")
         save_btn.setDefault(True)
         save_btn.clicked.connect(self._save)
@@ -189,6 +209,7 @@ class ReviewDialog(QDialog):
         cancel_btn.clicked.connect(self.reject)
 
         hbox.addWidget(approve_btn)
+        hbox.addWidget(self._exclude_btn)
         hbox.addStretch()
         hbox.addWidget(save_btn)
         hbox.addWidget(cancel_btn)
@@ -268,6 +289,54 @@ class ReviewDialog(QDialog):
         self._saved = True
         self.accept()
 
+    def _confirm_exclusion(self) -> None:
+        """
+        Permanently exclude this document after explicit user confirmation.
+
+        - Writes a registry entry to excluded_files.json.
+        - Deletes the local PDF from disk.
+        - Sets status to "excluded" and persists the document.
+        - Future Drive scans will ignore this file permanently.
+        """
+        answer = QMessageBox.question(
+            self,
+            "אישור החרגה קבועה",
+            f"האם להחריג את המסמך לצמיתות?\n\n"
+            f"{self._doc.file_name}\n\n"
+            "• הקובץ המקומי יימחק מהדיסק.\n"
+            "• סריקות Drive עתידיות לא ירשמו אותו מחדש.\n"
+            "• הפעולה אינה הפיכה.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        from datetime import datetime, timezone
+        try:
+            from app.services.exclusion_service import confirm_irrelevant
+            confirm_irrelevant(self._doc)
+        except Exception as exc:
+            logger.error("confirm_irrelevant failed for %s: %s", self._doc.drive_file_id, exc)
+            QMessageBox.critical(
+                self,
+                "שגיאה",
+                f"לא ניתן היה לרשום את ההחרגה:\n{exc}",
+            )
+            return
+
+        self._doc.status = "confirmed_irrelevant"
+        self._doc.confirmed_irrelevant_at = datetime.now(timezone.utc).isoformat()
+        self._doc.local_path = ""
+        self._store.upsert(self._doc)
+        self._exclude_btn.setEnabled(False)
+        self._saved = True
+        logger.info(
+            "Document confirmed irrelevant by user: %s (id=%s)",
+            self._doc.file_name, self._doc.drive_file_id,
+        )
+        self.accept()
+
     def _record_corrections_for_learning(self, corrections: dict) -> None:
         """
         For each corrected field that differs from the original extracted value,
@@ -319,22 +388,8 @@ class ReviewDialog(QDialog):
                 logger.warning("record_and_learn failed for field %r: %s", dialog_field, exc)
 
     def _open_pdf(self) -> None:
-        path = self._doc.local_path
-        if not path or not Path(path).exists():
-            QMessageBox.warning(
-                self, "PDF לא נמצא",
-                "הקובץ המקומי אינו זמין.\nעבד את המסמך תחילה."
-            )
-            return
-        try:
-            if sys.platform == "win32":
-                os.startfile(path)
-            elif sys.platform == "darwin":
-                os.system(f'open "{path}"')
-            else:
-                os.system(f'xdg-open "{path}"')
-        except Exception as exc:
-            QMessageBox.critical(self, "שגיאה", f"לא ניתן לפתוח את הקובץ:\n{exc}")
+        from app.ui.file_opener import open_local_file
+        open_local_file(self._doc.local_path, parent=self)
 
     @property
     def was_saved(self) -> bool:

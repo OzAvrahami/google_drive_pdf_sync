@@ -35,6 +35,8 @@ SETTINGS_JSON        = DATA_DIR / "settings.json"
 SUPPLIER_RULES_JSON  = DATA_DIR / "supplier_rules.json"
 LEARNED_RULES_JSON   = DATA_DIR / "learned_rules.json"
 CORRECTIONS_LOG_JSON = DATA_DIR / "corrections_log.json"
+CORRECTION_MAP_JSON  = DATA_DIR / "correction_map.json"
+EXCLUDED_FILES_JSON  = DATA_DIR / "excluded_files.json"
 
 # ── Excel export ───────────────────────────────────────────────────────────────
 EXCEL_OUTPUT_PATH = OUTPUT_DIR / "invoices.xlsx"

@@ -103,6 +103,7 @@ def record_and_learn(
     )
 
     _append_correction(correction)
+    _record_positive_correction(correction)
     return _maybe_create_rule(correction)
 
 
@@ -196,6 +197,24 @@ def _maybe_create_rule(correction: Correction) -> Optional[str]:
     reason = new_rule.get("reason", "New rule learned")
     logger.info("Rule created [%s]: %s", new_rule["id"], reason)
     return reason
+
+
+# ── Positive correction map ───────────────────────────────────────────────────
+
+def _record_positive_correction(correction: Correction) -> None:
+    """
+    Store the correction in correction_map.json so the parser can apply it on
+    the next run.  This fires on the *first* correction — no threshold.
+    """
+    try:
+        from app.services.correction_map_service import record_correction
+        record_correction(
+            field_name      = correction.field_name,
+            extracted_value = correction.original_value,
+            correct_value   = correction.corrected_value,
+        )
+    except Exception as exc:
+        logger.warning("Could not record positive correction: %s", exc)
 
 
 # ── Persistence helpers ───────────────────────────────────────────────────────

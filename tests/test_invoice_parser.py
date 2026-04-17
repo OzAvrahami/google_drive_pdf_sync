@@ -13,6 +13,8 @@ from app.parsers.invoice_parser import (
     classify_document_type,
     should_process_document,
     parse_invoice_text,
+    EXCLUDED_DOCUMENT_TYPES,
+    SUPPORTED_DOCUMENT_TYPES,
     _extract_invoice_number,
     _extract_invoice_date,
     _extract_amount,
@@ -207,6 +209,28 @@ MULTILINE_AMOUNT = """\
 מע"מ:
 """
 
+# Supplier onboarding / account-opening form — must be excluded
+SUPPLIER_OPENING_FORM = """\
+
+--- PAGE 1 ---
+טופס פתיחת ספק
+שם הספק: חברה ראשית בע"מ
+ח.פ: 123456789
+כתובת: רחוב הרצל 1, תל אביב
+טלפון: 03-1234567
+אימייל: supplier@example.com
+מספר חשבון בנק: 12-345-678901
+"""
+
+SUPPLIER_FORM_VARIANT = """\
+
+--- PAGE 1 ---
+טופס פרטי ספק
+למילוי על-ידי הספק
+שם מלא: דניאל לוי
+עוסק מורשה: 987654321
+"""
+
 
 # ─── classify_document_type ───────────────────────────────────────────────────
 
@@ -260,6 +284,76 @@ class TestShouldProcessDocument:
 
     def test_returns_false_for_unrecognized(self):
         assert should_process_document("random unrecognized text") is False
+
+
+# ─── Classification constants ────────────────────────────────────────────────
+
+class TestClassificationConstants:
+    """Verify EXCLUDED_DOCUMENT_TYPES and SUPPORTED_DOCUMENT_TYPES are correct."""
+
+    def test_excluded_contains_invoice_receipt(self):
+        assert "חשבונית מס קבלה" in EXCLUDED_DOCUMENT_TYPES
+
+    def test_excluded_contains_receipt(self):
+        assert "קבלה" in EXCLUDED_DOCUMENT_TYPES
+
+    def test_excluded_contains_supplier_form(self):
+        assert "טופס פתיחת ספק" in EXCLUDED_DOCUMENT_TYPES
+
+    def test_supported_contains_all_invoice_types(self):
+        assert "חשבון עסקה"  in SUPPORTED_DOCUMENT_TYPES
+        assert "חשבונית מס"  in SUPPORTED_DOCUMENT_TYPES
+        assert "דרישת תשלום" in SUPPORTED_DOCUMENT_TYPES
+
+    def test_excluded_and_supported_are_disjoint(self):
+        assert EXCLUDED_DOCUMENT_TYPES.isdisjoint(SUPPORTED_DOCUMENT_TYPES)
+
+
+# ─── Supplier opening form exclusion ─────────────────────────────────────────
+
+class TestSupplierOpeningFormExclusion:
+    """טופס פתיחת ספק must be classified as excluded and never parsed."""
+
+    def test_classify_returns_supplier_form_type(self):
+        assert classify_document_type(SUPPLIER_OPENING_FORM) == "טופס פתיחת ספק"
+
+    def test_variant_phrase_also_detected(self):
+        assert classify_document_type(SUPPLIER_FORM_VARIANT) == "טופס פתיחת ספק"
+
+    def test_should_process_returns_false(self):
+        assert should_process_document(SUPPLIER_OPENING_FORM) is False
+
+    def test_parse_invoice_text_returns_none(self):
+        assert parse_invoice_text(SUPPLIER_OPENING_FORM) is None
+
+    def test_supplier_form_is_in_excluded_types(self):
+        doc_type = classify_document_type(SUPPLIER_OPENING_FORM)
+        assert doc_type in EXCLUDED_DOCUMENT_TYPES
+
+    def test_supplier_form_not_classified_as_invoice(self):
+        doc_type = classify_document_type(SUPPLIER_OPENING_FORM)
+        assert doc_type not in SUPPORTED_DOCUMENT_TYPES
+
+
+# ─── Existing excluded types (regression) ────────────────────────────────────
+
+class TestExistingExcludedTypesRegression:
+    """Ensure previously excluded types remain excluded after the refactor."""
+
+    def test_invoice_receipt_excluded(self):
+        assert classify_document_type(KABALA_MAS_TABIT) in EXCLUDED_DOCUMENT_TYPES
+        assert classify_document_type(KABALA_MAS_WOLT) in EXCLUDED_DOCUMENT_TYPES
+
+    def test_receipt_excluded(self):
+        assert classify_document_type(KABALA_SIMPLE) in EXCLUDED_DOCUMENT_TYPES
+
+    def test_invoice_receipt_never_classified_as_supported(self):
+        assert classify_document_type(KABALA_MAS_TABIT) not in SUPPORTED_DOCUMENT_TYPES
+
+    def test_normal_invoice_still_accepted(self):
+        assert classify_document_type(CHESHBONIT_MAS_ICOUNT) in SUPPORTED_DOCUMENT_TYPES
+        assert classify_document_type(CHESHBON_ESEK_ICOUNT)   in SUPPORTED_DOCUMENT_TYPES
+        assert classify_document_type(DARISHA_TASHLUM)         in SUPPORTED_DOCUMENT_TYPES
 
 
 # ─── _extract_invoice_number ──────────────────────────────────────────────────

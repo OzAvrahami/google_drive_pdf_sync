@@ -6,23 +6,69 @@ Public API
 classify_document_type(text) -> str | None
 should_process_document(text) -> bool
 parse_invoice_text(text)     -> dict | None
+
+Classification priority (checked top to bottom):
+  1. Excluded types — detected first; processing stops immediately for these.
+       חשבונית מס קבלה  — combined invoice + receipt
+       קבלה              — standalone receipt
+       טופס פתיחת ספק   — supplier onboarding / opening form
+  2. Supported types — invoice parsing proceeds only for these.
+       חשבון עסקה  / חשבונית מס / דרישת תשלום
+  3. Unrecognised — returns None; treated the same as unsupported by callers.
 """
 
+import logging
 import re
 from typing import Optional
 
 from app.parsers.supplier_validator import validate_supplier
 
+logger = logging.getLogger(__name__)
+
 # Hebrew PDFs use U+05F4 GERSHAYIM, ASCII 0x22, or curly U+201D in place of "
 _Q = '"\u05f4\u201c\u201d'
 
-# ── Classification ─────────────────────────────────────────────────────────────
+# ── Classification constants ───────────────────────────────────────────────────
+# Single source of truth — import these in any module that needs to branch on type.
 
-# Rejection patterns — must be checked before acceptance
+#: Document types that must be excluded from the invoice pipeline.
+EXCLUDED_DOCUMENT_TYPES: frozenset = frozenset({
+    "חשבונית מס קבלה",  # combined invoice + receipt
+    "קבלה",             # standalone receipt
+    "טופס פתיחת ספק",  # supplier onboarding / opening form
+})
+
+#: Document types that are valid inputs for invoice field extraction.
+SUPPORTED_DOCUMENT_TYPES: frozenset = frozenset({
+    "חשבון עסקה",
+    "חשבונית מס",
+    "דרישת תשלום",
+})
+
+# ── Classification patterns ────────────────────────────────────────────────────
+# Exclusion patterns — checked FIRST so "חשבונית מס קבלה" never leaks through
+# as "חשבונית מס", and supplier forms are caught before generic invoice patterns.
+
+# Combined invoice + receipt: "חשבונית מס קבלה" or "חשבונית מס / קבלה"
 _RE_KABALA_MAS = re.compile(r'חשבונית\s+מס\s*[/\\]\s*קבלה|חשבונית\s+מס\s+קבלה')
-_RE_KABALA     = re.compile(rf"קבלה\s+(?:מס[{_Q}'`]?\s*)?(?=\d)")
 
-# Acceptance patterns
+# Standalone receipt.
+# Requires a digit immediately after "קבלה [מס']" (lookahead (?=\d)) so that
+# alphanumeric receipt references like "קבלה מספר RCI26908086" inside a normal
+# consolidated invoice do NOT trigger this pattern.
+_RE_KABALA = re.compile(rf"קבלה\s+(?:מס[{_Q}'`]?\s*)?(?=\d)")
+
+# Supplier onboarding / account-opening form.
+# These are administrative PDFs sent by new suppliers — never invoices.
+_RE_SUPPLIER_FORM = re.compile(
+    r'טופס\s+פתיחת\s+ספק'
+    r'|טופס\s+פרטי\s+ספק'
+    r'|פתיחת\s+ספק\s+חדש'
+    r'|supplier\s+onboard(?:ing)?',
+    re.IGNORECASE,
+)
+
+# Acceptance patterns (only reached when no exclusion pattern matched)
 _RE_ESEK    = re.compile(r'חשבון\s+עסקה')
 _RE_MAS     = re.compile(r'חשבונית\s+מס(?!\s*קבלה)')   # negative-lookahead guard
 # Fix 1: typo variant "חשבוית מס" (missing ן) produced by certain PDF generators
@@ -42,20 +88,20 @@ def classify_document_type(text: str) -> Optional[str]:
     """
     Return the canonical document type string, or None if unrecognised.
 
-    Rejection checks always run before acceptance so "חשבונית מס קבלה"
-    is never matched as "חשבונית מס".
+    Exclusion checks always run before acceptance checks — see module docstring
+    for the full priority order.
     """
-    # Reject combined invoice+receipt (both "חשבונית מס קבלה" and "חשבונית מס / קבלה")
+    # ── Exclusion tier ─────────────────────────────────────────────────────────
     if _RE_KABALA_MAS.search(text):
         return "חשבונית מס קבלה"
 
-    # Reject standalone receipt.
-    # _RE_KABALA requires a digit immediately after the optional "מס'" token
-    # (via a (?=\d) lookahead) so alphanumeric receipt references like
-    # "קבלה מספר RCI26908086" inside consolidated invoices do NOT match here.
     if _RE_KABALA.search(text):
         return "קבלה"
 
+    if _RE_SUPPLIER_FORM.search(text):
+        return "טופס פתיחת ספק"
+
+    # ── Acceptance tier ────────────────────────────────────────────────────────
     if _RE_ESEK.search(text):
         return "חשבון עסקה"
     if _RE_MAS.search(text) or _RE_MAS_TYPO.search(text) or _RE_TAX_EN.search(text):
@@ -67,8 +113,8 @@ def classify_document_type(text: str) -> Optional[str]:
 
 
 def should_process_document(text: str) -> bool:
-    doc_type = classify_document_type(text)
-    return doc_type in {"חשבון עסקה", "חשבונית מס", "דרישת תשלום"}
+    """Return True only for document types that should be invoice-parsed."""
+    return classify_document_type(text) in SUPPORTED_DOCUMENT_TYPES
 
 
 # ── Field extractors ───────────────────────────────────────────────────────────
@@ -267,14 +313,32 @@ _DOC_TYPE_MAP: dict[str, str] = {
     "דרישת תשלום": "payment_request",
 }
 
+# Maps parser result keys → correction_map field names used in the UI / learning service.
+_PARSER_TO_CORRECTION_FIELD: dict[str, str] = {
+    "business_name":  "supplier_name",
+    "invoice_date":   "invoice_date",
+    "invoice_number": "invoice_number",
+    "amount":         "total",
+}
+
+# Fields whose corrected value must be stored as float (matches parser output type).
+_FLOAT_PARSER_FIELDS = frozenset({"amount"})
+
 # ── Main entry point ───────────────────────────────────────────────────────────
 
-def parse_invoice_text(text: str) -> Optional[dict]:
+def parse_invoice_text(
+    text: str,
+    correction_map: Optional[dict] = None,
+) -> Optional[dict]:
     """
     Parse normalised PDF text extracted by extract_text_from_pdf().
 
     Returns a dict for processable documents (חשבון עסקה / חשבונית מס / דרישת תשלום),
     or None for receipts, combined invoice-receipts, and unrecognised types.
+
+    *correction_map* — pre-loaded dict from correction_map_service.load_correction_map().
+    When provided, any extracted field whose value matches a stored correction is
+    replaced with the learned correct value before the result is returned.
 
     Return shape:
         {
@@ -285,9 +349,12 @@ def parse_invoice_text(text: str) -> Optional[dict]:
             "amount": float | None,        # סה"כ לתשלום
         }
     """
+    logger.debug("parse_invoice_text: starting extraction.")
+
     doc_type = classify_document_type(text)
 
     if doc_type not in {"חשבון עסקה", "חשבונית מס", "דרישת תשלום"}:
+        logger.debug("parse_invoice_text: document type %r — skipping.", doc_type)
         return None
 
     raw_supplier = _extract_business_name(text)
@@ -311,7 +378,62 @@ def parse_invoice_text(text: str) -> Optional[dict]:
         "fallback_candidate": validation.fallback_candidate,
         "address_score":      validation.address_score,
     }
+
+    logger.debug(
+        "parse_invoice_text: raw result — supplier=%r date=%r number=%r amount=%r",
+        result.get("business_name"),
+        result.get("invoice_date"),
+        result.get("invoice_number"),
+        result.get("amount"),
+    )
+
+    # ── Apply learned corrections (post-processing layer) ──────────────────────
+    if correction_map:
+        _apply_corrections(result, correction_map)
+    else:
+        logger.debug("parse_invoice_text: no correction map provided — skipping.")
+
     return result
+
+
+# ── Correction application ─────────────────────────────────────────────────────
+
+def _apply_corrections(result: dict, correction_map: dict) -> None:
+    """
+    Check each extractable field against the correction map and replace
+    the value in-place when a learned mapping exists.
+
+    Modifies *result* directly; returns nothing.
+    """
+    from app.services.correction_map_service import lookup_correction
+
+    for parser_key, correction_field in _PARSER_TO_CORRECTION_FIELD.items():
+        extracted_val = result.get(parser_key)
+        if extracted_val is None:
+            continue
+
+        learned = lookup_correction(
+            correction_field, str(extracted_val), correction_map
+        )
+        if learned is None:
+            continue
+
+        # Amount must be stored as float to match the parser's output type.
+        if parser_key in _FLOAT_PARSER_FIELDS:
+            try:
+                learned = float(learned)
+            except (ValueError, TypeError):
+                logger.warning(
+                    "Learned correction for %r (%r) is not a valid number — skipping.",
+                    parser_key, learned,
+                )
+                continue
+
+        logger.info(
+            "Learned correction applied: field=%r  %r → %r",
+            parser_key, extracted_val, learned,
+        )
+        result[parser_key] = learned
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

@@ -12,7 +12,8 @@
       "Bash(touch app/clients/__init__.py app/models/__init__.py app/parsers/__init__.py app/state/__init__.py app/utils/__init__.py app/writers/__init__.py)",
       "Bash(rmdir app/extractors)",
       "Bash(grep -E \"\\\\.\\(toml|cfg|ini|yaml|yml\\)$\")",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(python3 -c \"from app.ui.dashboard_widget import DashboardWidget; print\\('Dashboard import OK'\\)\")"
     ]
   }
 }
