@@ -243,10 +243,10 @@ class ReviewDialog(QDialog):
                 text = Path(doc.raw_text_path).read_text(encoding="utf-8")
                 self._text_view.setPlainText(text)
             except Exception as exc:
-                self._text_view.setPlainText(f"[Could not read text file: {exc}]")
+                self._text_view.setPlainText(f"[לא ניתן לקרוא את קובץ הטקסט: {exc}]")
         else:
             self._text_view.setPlainText(
-                "[No extracted text available yet.\nProcess the document first.]"
+                "[טקסט לא חולץ עדיין.\nיש לעבד את המסמך תחילה.]"
             )
 
     # ── Actions ────────────────────────────────────────────────────────────────

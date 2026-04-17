@@ -15,12 +15,12 @@ from PySide6.QtWidgets import (
 
 # view_key → (display label, set of statuses that belong to this view)
 _VIEWS = [
-    ("dashboard",  "📊  Dashboard",           frozenset()),
-    ("new",        "🆕  New Documents",        frozenset({"new"})),
-    ("attention",  "⚠   Needs Attention",      frozenset({"needs_review", "failed", "skipped"})),
-    ("results",    "✅  Processed (Pending)",   frozenset({"processed", "approved"})),
-    ("irrelevant", "🗑️  Irrelevant",           frozenset({"confirmed_irrelevant", "excluded"})),
-    ("history",    "📋  History",              frozenset({"exported"})),
+    ("dashboard",  "📊  לוח בקרה",            frozenset()),
+    ("new",        "🆕  מסמכים חדשים",         frozenset({"new"})),
+    ("attention",  "⚠   דורש טיפול",           frozenset({"needs_review", "failed", "skipped"})),
+    ("results",    "✅  מעובד (ממתין)",         frozenset({"processed", "approved"})),
+    ("irrelevant", "🗑️  לא רלוונטי",          frozenset({"confirmed_irrelevant", "excluded"})),
+    ("history",    "📋  היסטוריה",             frozenset({"exported"})),
 ]
 
 _BASE_LABELS = {key: label for key, label, _ in _VIEWS}
@@ -45,6 +45,7 @@ class SidebarWidget(QWidget):
         self._list = QListWidget()
         self._list.setFrameShape(QListWidget.Shape.NoFrame)
         self._list.setSpacing(2)
+        self._list.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         font = QFont("Arial", 10)
 
         for key, label, _ in _VIEWS:

@@ -86,9 +86,9 @@ class RetryWorker(QThread):
         try:
             doc = self._store.get_by_drive_id(self._drive_file_id)
             if doc is None:
-                self.error.emit(f"Document not found: {self._drive_file_id}")
+                self.error.emit(f"מסמך לא נמצא: {self._drive_file_id}")
                 return
-            self.progress.emit(f"Retrying: {doc.file_name}…")
+            self.progress.emit(f"מעבד מחדש: {doc.file_name}…")
             self.step.emit(0, 1, doc.file_name)
             svc = ProcessingService(self._store)
             svc.retry(doc)
@@ -115,7 +115,7 @@ class BulkProcessWorker(QThread):
     def run(self) -> None:
         try:
             from app.clients.drive_client import get_drive_service
-            self.progress.emit("Authenticating with Google Drive…")
+            self.progress.emit("מתחבר ל-Google Drive…")
             drive_service, _ = get_drive_service()
 
             svc   = ProcessingService(self._store)
@@ -127,7 +127,7 @@ class BulkProcessWorker(QThread):
                 if doc is None:
                     skipped += 1
                     continue
-                self.progress.emit(f"Processing {i}/{total}: {doc.file_name}")
+                self.progress.emit(f"מעבד {i}/{total}: {doc.file_name}")
                 self.step.emit(i, total, doc.file_name)
                 try:
                     svc.retry(doc, drive_service=drive_service)
@@ -174,14 +174,14 @@ class ExportWorker(QThread):
         try:
             from app.writers.excel_writer import export_documents
 
-            self.progress.emit("Collecting approved documents…")
+            self.progress.emit("אוסף מסמכים מאושרים…")
             docs = self._store.get_by_status("approved")
 
             if not docs:
-                self.finished.emit({"exported": 0, "message": "No approved documents to export."})
+                self.finished.emit({"exported": 0, "message": "אין מסמכים מאושרים לייצוא."})
                 return
 
-            self.progress.emit(f"Exporting {len(docs)} document(s) to Excel…")
+            self.progress.emit(f"מייצא {len(docs)} מסמכים לאקסל…")
             count = export_documents(docs, self._output_path)
 
             # Mark exported documents

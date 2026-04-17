@@ -64,6 +64,54 @@
       "drive_file_id": "1G0CuvbkclVQuNYI_JICsiOyvBLZekv7v",
       "file_name": "קבלה דצמבר יובל רוזן.pdf",
       "timestamp": "2026-04-14T19:53:16.241549+00:00"
+    },
+    {
+      "field_name": "supplier_name",
+      "original_value": "דף: 1",
+      "corrected_value": "B.Teen Design. ltd",
+      "drive_file_id": "1wssz33cb-eVc4bwWIqp2R58N-UkUd8xm",
+      "file_name": "חשבונית מס קבלה ינואר- ביטין.pdf",
+      "timestamp": "2026-04-17T10:50:52.325281+00:00"
+    },
+    {
+      "field_name": "invoice_number",
+      "original_value": "",
+      "corrected_value": "6501068",
+      "drive_file_id": "1wssz33cb-eVc4bwWIqp2R58N-UkUd8xm",
+      "file_name": "חשבונית מס קבלה ינואר- ביטין.pdf",
+      "timestamp": "2026-04-17T10:50:52.336967+00:00"
+    },
+    {
+      "field_name": "total",
+      "original_value": "21.685",
+      "corrected_value": "5685.12",
+      "drive_file_id": "1wssz33cb-eVc4bwWIqp2R58N-UkUd8xm",
+      "file_name": "חשבונית מס קבלה ינואר- ביטין.pdf",
+      "timestamp": "2026-04-17T10:50:52.342547+00:00"
+    },
+    {
+      "field_name": "supplier_name",
+      "original_value": "חתום דיגיטלית מקור",
+      "corrected_value": "יעל רותם",
+      "drive_file_id": "1169nDdn6W5k-zoDmb7IZQe9M6ISNIlx5",
+      "file_name": "דרישת תשלום #1010 מאת יעל רותם.pdf",
+      "timestamp": "2026-04-17T10:51:53.049469+00:00"
+    },
+    {
+      "field_name": "invoice_number",
+      "original_value": "",
+      "corrected_value": "1010",
+      "drive_file_id": "1169nDdn6W5k-zoDmb7IZQe9M6ISNIlx5",
+      "file_name": "דרישת תשלום #1010 מאת יעל רותם.pdf",
+      "timestamp": "2026-04-17T10:51:53.062668+00:00"
+    },
+    {
+      "field_name": "total",
+      "original_value": "",
+      "corrected_value": "802.0",
+      "drive_file_id": "1169nDdn6W5k-zoDmb7IZQe9M6ISNIlx5",
+      "file_name": "דרישת תשלום #1010 מאת יעל רותם.pdf",
+      "timestamp": "2026-04-17T10:51:53.069988+00:00"
     }
   ]
 }

@@ -65,6 +65,7 @@ class DashboardWidget(QWidget):
     def __init__(self, store: "DocumentStore", parent=None) -> None:
         super().__init__(parent)
         self._store = store
+        self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self._build_ui()
         self.refresh()
 
@@ -77,9 +78,10 @@ class DashboardWidget(QWidget):
         root.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # ── Title ──────────────────────────────────────────────────────────────
-        title = QLabel("Dashboard")
+        title = QLabel("לוח בקרה")
         title.setFont(QFont("Arial", 18, QFont.Weight.Bold))
-        title.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        title.setAlignment(Qt.AlignmentFlag.AlignRight)
+        title.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         root.addWidget(title)
 
         # ── Stat cards ─────────────────────────────────────────────────────────
@@ -90,12 +92,12 @@ class DashboardWidget(QWidget):
 
         self._cards: dict[str, _StatCard] = {}
         card_defs = [
-            ("total",        "Total",        "#EEEEEE"),
-            ("new",          "New",          "#E3F2FD"),
-            ("needs_review", "Needs Review", "#FFF3E0"),
-            ("failed",       "Failed",       "#FFEBEE"),
-            ("approved",     "Approved",     "#C8E6C9"),
-            ("exported",     "Exported",     "#E0F2F1"),
+            ("total",        'סה"כ',     "#EEEEEE"),
+            ("new",          "חדשים",    "#E3F2FD"),
+            ("needs_review", "לבדיקה",   "#FFF3E0"),
+            ("failed",       "שגיאה",    "#FFEBEE"),
+            ("approved",     "מאושרים",  "#C8E6C9"),
+            ("exported",     "יוצאו",    "#E0F2F1"),
         ]
         for key, label, color in card_defs:
             card = _StatCard(label, color)
@@ -105,8 +107,9 @@ class DashboardWidget(QWidget):
         root.addWidget(cards_row)
 
         # ── Quick actions ──────────────────────────────────────────────────────
-        actions_label = QLabel("Quick Actions")
+        actions_label = QLabel("פעולות מהירות")
         actions_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        actions_label.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         root.addWidget(actions_label)
 
         actions_row = QWidget()
@@ -138,12 +141,14 @@ class DashboardWidget(QWidget):
         root.addWidget(actions_row)
 
         # ── Recent activity ────────────────────────────────────────────────────
-        recent_label = QLabel("Recently Updated")
+        recent_label = QLabel("עדכונים אחרונים")
         recent_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        recent_label.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         root.addWidget(recent_label)
 
         self._recent_list = QListWidget()
-        self._recent_list.setFixedHeight(200)
+        self._recent_list.setMinimumHeight(160)
+        self._recent_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._recent_list.setFont(QFont("Arial", 9))
         self._recent_list.setStyleSheet(
             "QListWidget { border: 1px solid #E0E0E0; border-radius: 4px; }"

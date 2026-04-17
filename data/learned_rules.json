@@ -9,6 +9,15 @@
       "reason": "Value corrected 3 time(s)",
       "id": "lr_50e1cf7d",
       "created_at": "2026-04-14T19:11:03.597662+00:00"
+    },
+    {
+      "field": "invoice_number",
+      "action": "reject",
+      "pattern_type": "literal",
+      "value": "",
+      "reason": "Value corrected 3 time(s)",
+      "id": "lr_e4dae867",
+      "created_at": "2026-04-17T10:51:53.069348+00:00"
     }
   ]
 }

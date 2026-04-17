@@ -247,7 +247,7 @@
       "folder_path": "ינואר 2026/חשבון עסקה בגין ינואר ",
       "local_path": "D:\\code\\google_drive_pdf_sync\\data\\downloads\\ינואר 2026\\חשבון עסקה בגין ינואר\\דרישת תשלום #1010 מאת יעל רותם.pdf",
       "raw_text_path": "D:\\code\\google_drive_pdf_sync\\data\\text\\1169nDdn6W5k-zoDmb7IZQe9M6ISNIlx5.txt",
-      "status": "needs_review",
+      "status": "approved",
       "confidence": 0.35,
       "supplier_name": "חתום דיגיטלית מקור",
       "invoice_number": null,
@@ -273,13 +273,18 @@
           "address_score": 0
         }
       },
-      "corrected_data": {},
+      "corrected_data": {
+        "supplier_name": "יעל רותם",
+        "invoice_number": "1010",
+        "invoice_date": "29/01/2026",
+        "total": 802.0
+      },
       "error_message": null,
       "exported_to_excel": false,
       "confirmed_irrelevant_at": null,
       "id": "babfd3c5-414e-4310-bbae-f2667327c59e",
       "created_at": "2026-04-15T19:43:17.776080+00:00",
-      "updated_at": "2026-04-17T09:14:08.686956+00:00"
+      "updated_at": "2026-04-17T10:51:53.034189+00:00"
     },
     {
       "drive_file_id": "1YHprkF4ik32F7J-vf7YbWQISFuO3dYq4",
@@ -5889,7 +5894,7 @@
       "raw_text_path": "D:\\code\\google_drive_pdf_sync\\data\\text\\1pp9MQnatoT0-yLUWYwktDK_uoh7lsv0L.txt",
       "status": "needs_review",
       "confidence": 0.6,
-      "supplier_name": "חתום דיגיטלית מקור",
+      "supplier_name": "יעל רותם",
       "invoice_number": null,
       "invoice_date": "12/04/2026",
       "subtotal": null,
@@ -5898,7 +5903,7 @@
       "description": null,
       "extracted_data": {
         "document_type": "payment_request",
-        "business_name": "חתום דיגיטלית מקור",
+        "business_name": "יעל רותם",
         "invoice_date": "12/04/2026",
         "invoice_number": null,
         "amount": 8850.0,
@@ -5919,7 +5924,7 @@
       "confirmed_irrelevant_at": null,
       "id": "8448575b-3878-45ab-8ae9-2fc751d1f08f",
       "created_at": "2026-04-15T19:43:17.777204+00:00",
-      "updated_at": "2026-04-17T09:18:04.448360+00:00"
+      "updated_at": "2026-04-17T10:52:00.882656+00:00"
     },
     {
       "drive_file_id": "1t9QSa2powjwXj_j_ZLqeJybzcDcLgAaT",
@@ -7083,9 +7088,9 @@
       "drive_file_id": "17NHuoVzionFJiupH9YeWHxzz4R5mf2CP",
       "file_name": "רועי זמיר חשבונית מס קבלה בגין פברואר 3187.pdf",
       "folder_path": "מרץ 2026/חשבוניות מס קבלה ",
-      "local_path": "D:\\code\\google_drive_pdf_sync\\data\\downloads\\מרץ 2026\\חשבוניות מס קבלה\\רועי זמיר חשבונית מס קבלה בגין פברואר 3187.pdf",
+      "local_path": "",
       "raw_text_path": "D:\\code\\google_drive_pdf_sync\\data\\text\\17NHuoVzionFJiupH9YeWHxzz4R5mf2CP.txt",
-      "status": "skipped",
+      "status": "confirmed_irrelevant",
       "confidence": 0.0,
       "supplier_name": null,
       "invoice_number": null,
@@ -7100,10 +7105,10 @@
       "corrected_data": {},
       "error_message": "מסמך לא רלוונטי: חשבונית מס קבלה",
       "exported_to_excel": false,
-      "confirmed_irrelevant_at": null,
+      "confirmed_irrelevant_at": "2026-04-17T10:48:51.880097+00:00",
       "id": "00b522cd-789c-46d5-af6f-400b86fcf5e9",
       "created_at": "2026-04-15T19:43:17.777387+00:00",
-      "updated_at": "2026-04-17T09:18:53.228512+00:00"
+      "updated_at": "2026-04-17T10:48:51.880114+00:00"
     },
     {
       "drive_file_id": "1ulE6vyvaK6XRl9vxkdTdzugyKqrvgLDo",
@@ -7447,9 +7452,9 @@
       "drive_file_id": "1BRaD1kXhO_TKS8SHFmOIpVT_99fJG_0A",
       "file_name": "קיסוס קבלה על חודש מרץ 2026.pdf",
       "folder_path": "מרץ 2026/חשבוניות ששולמו בכ\"א",
-      "local_path": "D:\\code\\google_drive_pdf_sync\\data\\downloads\\מרץ 2026\\חשבוניות ששולמו בכ_א\\קיסוס קבלה על חודש מרץ 2026.pdf",
+      "local_path": "",
       "raw_text_path": "D:\\code\\google_drive_pdf_sync\\data\\text\\1BRaD1kXhO_TKS8SHFmOIpVT_99fJG_0A.txt",
-      "status": "skipped",
+      "status": "confirmed_irrelevant",
       "confidence": 0.0,
       "supplier_name": null,
       "invoice_number": null,
@@ -7464,10 +7469,10 @@
       "corrected_data": {},
       "error_message": "מסמך לא רלוונטי: קבלה",
       "exported_to_excel": false,
-      "confirmed_irrelevant_at": null,
+      "confirmed_irrelevant_at": "2026-04-17T10:49:09.046297+00:00",
       "id": "622c213a-028a-4448-9747-b6a4f3dfeb06",
       "created_at": "2026-04-15T19:43:17.777463+00:00",
-      "updated_at": "2026-04-17T09:19:09.815078+00:00"
+      "updated_at": "2026-04-17T10:49:09.046313+00:00"
     },
     {
       "drive_file_id": "1TPZ1DwWmTGHU08io5jqE_i3QTy5MpqEs",
@@ -13005,7 +13010,7 @@
       "folder_path": "פברואר 2026/חשבוניות מס ",
       "local_path": "D:\\code\\google_drive_pdf_sync\\data\\downloads\\פברואר 2026\\חשבוניות מס\\חשבונית מס קבלה ינואר- ביטין.pdf",
       "raw_text_path": "D:\\code\\google_drive_pdf_sync\\data\\text\\1wssz33cb-eVc4bwWIqp2R58N-UkUd8xm.txt",
-      "status": "needs_review",
+      "status": "approved",
       "confidence": 0.5,
       "supplier_name": "דף: 1",
       "invoice_number": null,
@@ -13031,13 +13036,18 @@
           "address_score": 10
         }
       },
-      "corrected_data": {},
+      "corrected_data": {
+        "supplier_name": "B.Teen Design. ltd",
+        "invoice_number": "6501068",
+        "invoice_date": "17/03/2026",
+        "total": 5685.12
+      },
       "error_message": null,
       "exported_to_excel": false,
       "confirmed_irrelevant_at": null,
       "id": "26392598-07c0-48fa-8dab-e3e0180ccdc6",
       "created_at": "2026-04-15T19:43:17.778228+00:00",
-      "updated_at": "2026-04-17T09:22:23.643056+00:00"
+      "updated_at": "2026-04-17T10:50:52.294905+00:00"
     },
     {
       "drive_file_id": "1siDQlyh0P6NZi7_K_1jQq8aJOhx10URi",

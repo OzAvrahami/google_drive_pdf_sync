@@ -149,7 +149,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("כלי חשבונאות — מסמכים מ-Google Drive")
         self.setMinimumSize(1100, 680)
-        self.resize(1340, 780)
+        self.resize(1400, 820)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
         self._build_ui()
@@ -288,7 +288,7 @@ class MainWindow(QMainWindow):
 
         hh = tbl.horizontalHeader()
         hh.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        hh.setStretchLastSection(False)
+        hh.setStretchLastSection(True)
 
         tbl.setColumnWidth(_COL_NAME,       200)
         tbl.setColumnWidth(_COL_FOLDER,     100)
@@ -484,7 +484,7 @@ class MainWindow(QMainWindow):
         icon.setStyleSheet("color: #F57F17; background: transparent;")
         hbox.addWidget(icon)
 
-        label = QLabel("Needs Attention:")
+        label = QLabel("דורש טיפול:")
         label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         label.setStyleSheet("color: #5D4037; background: transparent;")
         hbox.addWidget(label)
@@ -882,7 +882,7 @@ def _get_attention_reason(doc: Document) -> str:
     Used to populate the 'Attention Reason' column in the Needs Attention view.
     """
     if doc.status == "failed":
-        msg = doc.error_message or "Processing error"
+        msg = doc.error_message or "שגיאת עיבוד"
         return msg[:90] + ("…" if len(msg) > 90 else "")
 
     if doc.status == "skipped":
@@ -890,19 +890,25 @@ def _get_attention_reason(doc: Document) -> str:
         prefix = "מסמך לא רלוונטי: "
         if msg.startswith(prefix):
             doc_type = msg[len(prefix):]
-            return f"Auto-classified: {doc_type}"
-        return msg or "Auto-classified as irrelevant"
+            return f"סווג אוטומטית: {doc_type}"
+        return msg or "סווג אוטומטית כלא-רלוונטי"
 
     if doc.status == "needs_review":
+        _FIELD_LABELS = {
+            "supplier_name": "ספק",
+            "invoice_date":  "תאריך",
+            "invoice_number": "מספר חשבונית",
+            "total":         "סכום",
+        }
         missing: list[str] = []
-        if not doc.effective("supplier_name"):  missing.append("supplier")
-        if not doc.effective("invoice_date"):   missing.append("date")
-        if not doc.effective("invoice_number"): missing.append("invoice #")
-        if not doc.effective("total"):          missing.append("amount")
+        if not doc.effective("supplier_name"):  missing.append(_FIELD_LABELS["supplier_name"])
+        if not doc.effective("invoice_date"):   missing.append(_FIELD_LABELS["invoice_date"])
+        if not doc.effective("invoice_number"): missing.append(_FIELD_LABELS["invoice_number"])
+        if not doc.effective("total"):          missing.append(_FIELD_LABELS["total"])
         conf_pct = int(doc.confidence * 100)
         if missing:
-            return f"Missing: {', '.join(missing)}  •  {conf_pct}% confidence"
-        return f"Low confidence ({conf_pct}%)"
+            return f"חסר: {', '.join(missing)}  •  ביטחון {conf_pct}%"
+        return f"ביטחון נמוך ({conf_pct}%)"
 
     return ""
 
