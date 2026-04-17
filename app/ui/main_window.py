@@ -4,17 +4,20 @@ Main application window.
 Layout
 ------
   Toolbar  : Scan Drive | Process New | Retry Selected | Export Approved
-  Body     : Sidebar (navigation) | Right area
+  Body     : Sidebar (fixed 175 px, not resizable) | Right area
                Right area: Search bar + Stacked widget
                  Stack page 0: DashboardWidget
                  Stack page 1: Document table (filtered by active view)
 
 Views (sidebar)
 ---------------
-  Dashboard        — overview stats and quick actions
-  New Documents    — status = new
-  Results          — status = processed | needs_review | failed
-  History          — status = approved | exported | skipped | excluded | confirmed_irrelevant
+  Dashboard            — overview stats and quick actions
+  New Documents        — status = new
+  Needs Attention      — status = needs_review | failed | skipped
+                         (with internal sub-filters + Attention Reason column)
+  Processed (Pending)  — status = processed | approved
+  Irrelevant           — status = confirmed_irrelevant | excluded
+  History              — status = exported  (final archive only)
 
 Double-click a row → ReviewDialog
 Right-click row(s) → context menu (open / retry / bulk process / mark irrelevant)
@@ -29,6 +32,7 @@ from PySide6.QtGui import QAction, QBrush, QColor, QFont
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -38,7 +42,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSizePolicy,
-    QSplitter,
     QStackedWidget,
     QStatusBar,
     QTableWidget,
@@ -103,10 +106,20 @@ _STATUS_LABELS: dict[str, str] = {
 
 # View key → set of statuses shown in the document table
 _VIEW_STATUSES: dict[str, frozenset] = {
-    "new":     frozenset({"new"}),
-    "results": frozenset({"processed", "needs_review", "failed"}),
-    "history": frozenset({"approved", "exported", "skipped", "excluded", "confirmed_irrelevant"}),
+    "new":        frozenset({"new"}),
+    "attention":  frozenset({"needs_review", "failed", "skipped"}),
+    "results":    frozenset({"processed", "approved"}),
+    "irrelevant": frozenset({"confirmed_irrelevant", "excluded"}),
+    "history":    frozenset({"exported"}),
 }
+
+# Sub-filters within the Needs Attention view: (key, Hebrew label, statuses)
+_ATTENTION_SUB_FILTERS: list[tuple] = [
+    ("all",     "הכל",                frozenset({"needs_review", "failed", "skipped"})),
+    ("review",  "לבדיקה",             frozenset({"needs_review"})),
+    ("failed",  "שגיאה",              frozenset({"failed"})),
+    ("skipped", "חשוד — לא רלוונטי", frozenset({"skipped"})),
+]
 
 # Statuses that cannot be marked irrelevant (already finalised)
 _NO_IRRELEVANT = frozenset({"approved", "exported", "excluded", "confirmed_irrelevant"})
@@ -120,17 +133,19 @@ _COL_NUMBER     = 4
 _COL_TOTAL      = 5
 _COL_STATUS     = 6
 _COL_CONFIDENCE = 7
-_COL_DRIVE_ID   = 8   # hidden
+_COL_REASON     = 8   # "Attention Reason" — visible only in Needs Attention view
+_COL_DRIVE_ID   = 9   # hidden
 
 
 class MainWindow(QMainWindow):
 
     def __init__(self, store: DocumentStore) -> None:
         super().__init__()
-        self._store           = store
-        self._active_view     = "new"
+        self._store                    = store
+        self._active_view              = "new"
         self._view_statuses: Optional[frozenset] = _VIEW_STATUSES["new"]
-        self._active_workers: list = []
+        self._attention_sub_filter: frozenset = _VIEW_STATUSES["attention"]
+        self._active_workers: list     = []
 
         self.setWindowTitle("כלי חשבונאות — מסמכים מ-Google Drive")
         self.setMinimumSize(1100, 680)
@@ -154,18 +169,28 @@ class MainWindow(QMainWindow):
         # Toolbar
         self._build_toolbar()
 
-        # Body: sidebar + right area
-        body = QSplitter(Qt.Orientation.Horizontal)
-        body.setChildrenCollapsible(False)
-        body.setHandleWidth(1)
-        body.setStyleSheet("QSplitter::handle { background: #E0E0E0; }")
-        vbox.addWidget(body, stretch=1)
+        # Body: sidebar (fixed) + divider + right area
+        # QHBoxLayout instead of QSplitter — sidebar width is truly fixed,
+        # no drag handle exists that could resize it.
+        body_widget = QWidget()
+        body_layout = QHBoxLayout(body_widget)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(0)
+        vbox.addWidget(body_widget, stretch=1)
 
-        # Left: sidebar
+        # Left: sidebar — fixed width, cannot be resized
         self._sidebar = SidebarWidget(parent=self)
         self._sidebar.setFixedWidth(175)
         self._sidebar.view_changed.connect(self._on_view_changed)
-        body.addWidget(self._sidebar)
+        body_layout.addWidget(self._sidebar)
+
+        # Thin vertical separator line
+        _sep = QFrame()
+        _sep.setFrameShape(QFrame.Shape.VLine)
+        _sep.setFrameShadow(QFrame.Shadow.Plain)
+        _sep.setFixedWidth(1)
+        _sep.setStyleSheet("color: #E0E0E0;")
+        body_layout.addWidget(_sep)
 
         # Right: search bar + stacked widget
         right = QWidget()
@@ -181,6 +206,11 @@ class MainWindow(QMainWindow):
         self._search.textChanged.connect(self._refresh_table)
         right_vbox.addWidget(self._search)
 
+        # Needs Attention sub-filter bar (hidden until attention view is active)
+        self._attention_bar = self._build_attention_bar()
+        self._attention_bar.setVisible(False)
+        right_vbox.addWidget(self._attention_bar)
+
         # Stacked widget
         self._stack = QStackedWidget()
 
@@ -194,9 +224,7 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._build_table())
 
         right_vbox.addWidget(self._stack, stretch=1)
-        body.addWidget(right)
-
-        body.setSizes([175, 1165])
+        body_layout.addWidget(right, stretch=1)
 
         # Status bar
         self._status_bar = QStatusBar()
@@ -241,7 +269,7 @@ class MainWindow(QMainWindow):
     def _build_table(self) -> QTableWidget:
         headers = [
             "שם קובץ", "נתיב", "ספק", "תאריך", "מסמך מספר",
-            "סכום", "סטטוס", "ביטחון", "drive_id",
+            "סכום", "סטטוס", "ביטחון", "סיבה", "drive_id",
         ]
         tbl = QTableWidget(0, len(headers))
         tbl.setHorizontalHeaderLabels(headers)
@@ -262,14 +290,16 @@ class MainWindow(QMainWindow):
         hh.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         hh.setStretchLastSection(False)
 
-        tbl.setColumnWidth(_COL_NAME,       220)
-        tbl.setColumnWidth(_COL_FOLDER,     120)
-        tbl.setColumnWidth(_COL_SUPPLIER,   160)
-        tbl.setColumnWidth(_COL_DATE,        95)
-        tbl.setColumnWidth(_COL_NUMBER,      95)
-        tbl.setColumnWidth(_COL_TOTAL,       90)
-        tbl.setColumnWidth(_COL_STATUS,     120)
-        tbl.setColumnWidth(_COL_CONFIDENCE,  65)
+        tbl.setColumnWidth(_COL_NAME,       200)
+        tbl.setColumnWidth(_COL_FOLDER,     100)
+        tbl.setColumnWidth(_COL_SUPPLIER,   150)
+        tbl.setColumnWidth(_COL_DATE,        90)
+        tbl.setColumnWidth(_COL_NUMBER,      90)
+        tbl.setColumnWidth(_COL_TOTAL,       85)
+        tbl.setColumnWidth(_COL_STATUS,     115)
+        tbl.setColumnWidth(_COL_CONFIDENCE,  60)
+        tbl.setColumnWidth(_COL_REASON,     260)
+        tbl.setColumnHidden(_COL_REASON,   True)   # shown only in Needs Attention view
         tbl.setColumnHidden(_COL_DRIVE_ID, True)
 
         self._table = tbl
@@ -299,6 +329,7 @@ class MainWindow(QMainWindow):
         total = doc.effective("total")
         total_str = f"₪{total:,.2f}" if isinstance(total, (int, float)) else ""
         conf_pct  = int(doc.confidence * 100)
+        reason    = _get_attention_reason(doc)
 
         cells = [
             doc.file_name,
@@ -309,6 +340,7 @@ class MainWindow(QMainWindow):
             total_str,
             _STATUS_LABELS.get(doc.status, doc.status),
             f"{conf_pct}%",
+            reason,
             doc.drive_file_id,
         ]
 
@@ -321,9 +353,11 @@ class MainWindow(QMainWindow):
             if col == _COL_STATUS:
                 item.setForeground(fg)
                 item.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-                # Show error_message as tooltip for failed / skipped docs
                 if doc.error_message and doc.status in ("failed", "skipped", "needs_review"):
                     item.setToolTip(doc.error_message)
+            if col == _COL_REASON and reason:
+                item.setForeground(QBrush(QColor(_STATUS_FG.get(doc.status, "#555555"))))
+                item.setFont(QFont("Arial", 9))
             self._table.setItem(row, col, item)
 
     def _update_row(self, row: int, doc: Document) -> None:
@@ -335,6 +369,7 @@ class MainWindow(QMainWindow):
         total = doc.effective("total")
         total_str = f"₪{total:,.2f}" if isinstance(total, (int, float)) else ""
         conf_pct  = int(doc.confidence * 100)
+        reason    = _get_attention_reason(doc)
 
         cells = [
             doc.file_name,
@@ -345,6 +380,7 @@ class MainWindow(QMainWindow):
             total_str,
             _STATUS_LABELS.get(doc.status, doc.status),
             f"{conf_pct}%",
+            reason,
             doc.drive_file_id,
         ]
 
@@ -364,10 +400,16 @@ class MainWindow(QMainWindow):
                 item.setFont(QFont("Arial", 9, QFont.Weight.Bold))
                 if doc.error_message and doc.status in ("failed", "skipped", "needs_review"):
                     item.setToolTip(doc.error_message)
+            if col == _COL_REASON and reason:
+                item.setForeground(QBrush(QColor(_STATUS_FG.get(doc.status, "#555555"))))
+                item.setFont(QFont("Arial", 9))
 
     def _passes_filter(self, doc: Document) -> bool:
-        # View-based status filter
-        if self._view_statuses is not None and doc.status not in self._view_statuses:
+        # View-based status filter (attention view uses its own sub-filter)
+        if self._active_view == "attention":
+            if doc.status not in self._attention_sub_filter:
+                return False
+        elif self._view_statuses is not None and doc.status not in self._view_statuses:
             return False
         # Full-text search (file name, supplier, invoice number)
         q = self._search.text().strip().lower()
@@ -406,13 +448,92 @@ class MainWindow(QMainWindow):
 
     def _on_view_changed(self, view: str) -> None:
         self._active_view = view
+        is_attention = (view == "attention")
+
+        # Show/hide the sub-filter bar and the Reason column together
+        self._attention_bar.setVisible(is_attention)
+        self._table.setColumnHidden(_COL_REASON, not is_attention)
+
         if view == "dashboard":
             self._dashboard.refresh()
             self._stack.setCurrentIndex(0)
         else:
             self._view_statuses = _VIEW_STATUSES.get(view)
+            if is_attention:
+                # Reset sub-filter to "All" when entering the view
+                self._attention_sub_filter = _VIEW_STATUSES["attention"]
+                for k, btn in self._attention_btns.items():
+                    btn.setChecked(k == "all")
             self._stack.setCurrentIndex(1)
             self._refresh_table()
+            if is_attention:
+                self._update_attention_counts()
+
+    def _build_attention_bar(self) -> QWidget:
+        """Horizontal sub-filter chip bar shown inside the Needs Attention view."""
+        bar = QWidget()
+        bar.setStyleSheet(
+            "QWidget { background: #FFF8E1; border-bottom: 1px solid #FFE082; }"
+        )
+        hbox = QHBoxLayout(bar)
+        hbox.setContentsMargins(8, 4, 8, 4)
+        hbox.setSpacing(6)
+
+        icon = QLabel("⚠")
+        icon.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        icon.setStyleSheet("color: #F57F17; background: transparent;")
+        hbox.addWidget(icon)
+
+        label = QLabel("Needs Attention:")
+        label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        label.setStyleSheet("color: #5D4037; background: transparent;")
+        hbox.addWidget(label)
+
+        hbox.addSpacing(6)
+
+        self._attention_btns: dict[str, QPushButton] = {}
+        for key, lbl, statuses in _ATTENTION_SUB_FILTERS:
+            btn = QPushButton(lbl)
+            btn.setCheckable(True)
+            btn.setFixedHeight(24)
+            btn.setMinimumWidth(80)
+            btn.setStyleSheet(
+                "QPushButton { background:#EEEEEE; border:1px solid #BDBDBD;"
+                " border-radius:12px; padding:0 10px; font-size:9pt; }"
+                "QPushButton:checked { background:#1565C0; color:white; border-color:#1565C0; }"
+                "QPushButton:hover:!checked { background:#E3F2FD; }"
+            )
+            btn.clicked.connect(lambda _, k=key, s=statuses: self._set_attention_sub_filter(k, s))
+            self._attention_btns[key] = btn
+            hbox.addWidget(btn)
+
+        self._attention_btns["all"].setChecked(True)
+        hbox.addStretch()
+        return bar
+
+    def _set_attention_sub_filter(self, key: str, statuses: frozenset) -> None:
+        """Switch the active sub-filter and refresh the table."""
+        self._attention_sub_filter = statuses
+        for k, btn in self._attention_btns.items():
+            btn.setChecked(k == key)
+        self._refresh_table()
+
+    def _update_attention_counts(self) -> None:
+        """Refresh count badges on each sub-filter chip."""
+        if not hasattr(self, "_attention_btns"):
+            return
+        counts = self._store.count_by_status()
+        badges: dict[str, int] = {
+            "all":     sum(counts.get(s, 0) for s in ("needs_review", "failed", "skipped")),
+            "review":  counts.get("needs_review", 0),
+            "failed":  counts.get("failed", 0),
+            "skipped": counts.get("skipped", 0),
+        }
+        base_labels = {k: lbl for k, lbl, _ in _ATTENTION_SUB_FILTERS}
+        for key, btn in self._attention_btns.items():
+            n    = badges.get(key, 0)
+            base = base_labels.get(key, key)
+            btn.setText(f"{base}  ({n})" if n else base)
 
     # ── Context menu ───────────────────────────────────────────────────────────
 
@@ -468,6 +589,10 @@ class MainWindow(QMainWindow):
         # Update sidebar badges
         if hasattr(self, "_sidebar"):
             self._sidebar.update_counts(counts)
+
+        # Update sub-filter counts when attention view is active
+        if hasattr(self, "_attention_btns") and self._active_view == "attention":
+            self._update_attention_counts()
 
     def _set_progress(self, msg: str) -> None:
         self._progress_label.setText(msg)
@@ -747,6 +872,39 @@ class MainWindow(QMainWindow):
     def _open_file(self, path: str) -> None:
         from app.ui.file_opener import open_local_file
         open_local_file(path, parent=self)
+
+
+# ── Attention reason helper ────────────────────────────────────────────────────
+
+def _get_attention_reason(doc: Document) -> str:
+    """
+    Return a short human-readable explanation of why a document needs attention.
+    Used to populate the 'Attention Reason' column in the Needs Attention view.
+    """
+    if doc.status == "failed":
+        msg = doc.error_message or "Processing error"
+        return msg[:90] + ("…" if len(msg) > 90 else "")
+
+    if doc.status == "skipped":
+        msg = doc.error_message or ""
+        prefix = "מסמך לא רלוונטי: "
+        if msg.startswith(prefix):
+            doc_type = msg[len(prefix):]
+            return f"Auto-classified: {doc_type}"
+        return msg or "Auto-classified as irrelevant"
+
+    if doc.status == "needs_review":
+        missing: list[str] = []
+        if not doc.effective("supplier_name"):  missing.append("supplier")
+        if not doc.effective("invoice_date"):   missing.append("date")
+        if not doc.effective("invoice_number"): missing.append("invoice #")
+        if not doc.effective("total"):          missing.append("amount")
+        conf_pct = int(doc.confidence * 100)
+        if missing:
+            return f"Missing: {', '.join(missing)}  •  {conf_pct}% confidence"
+        return f"Low confidence ({conf_pct}%)"
+
+    return ""
 
 
 # ── Style helpers ──────────────────────────────────────────────────────────────

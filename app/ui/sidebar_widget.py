@@ -1,8 +1,8 @@
 """
 Sidebar navigation widget.
 
-Displays four named views with live document-count badges:
-  Dashboard | New Documents | Results | History
+Displays six named views with live document-count badges:
+  Dashboard | New Documents | Needs Attention | Processed (Pending) | Irrelevant | History
 """
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
@@ -13,14 +13,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-# view_key → (icon + label, set of statuses that belong to this view)
+# view_key → (display label, set of statuses that belong to this view)
 _VIEWS = [
-    ("dashboard", "📊  Dashboard",       frozenset()),
-    ("new",       "🆕  New Documents",   frozenset({"new"})),
-    ("results",   "⚙   Results",         frozenset({"processed", "needs_review", "failed"})),
-    ("history",   "📋  History",         frozenset({
-        "approved", "exported", "skipped", "excluded", "confirmed_irrelevant",
-    })),
+    ("dashboard",  "📊  Dashboard",           frozenset()),
+    ("new",        "🆕  New Documents",        frozenset({"new"})),
+    ("attention",  "⚠   Needs Attention",      frozenset({"needs_review", "failed", "skipped"})),
+    ("results",    "✅  Processed (Pending)",   frozenset({"processed", "approved"})),
+    ("irrelevant", "🗑️  Irrelevant",           frozenset({"confirmed_irrelevant", "excluded"})),
+    ("history",    "📋  History",              frozenset({"exported"})),
 ]
 
 _BASE_LABELS = {key: label for key, label, _ in _VIEWS}
@@ -61,7 +61,7 @@ class SidebarWidget(QWidget):
         )
 
         self._list.currentItemChanged.connect(self._on_item_changed)
-        # Default: "New Documents" selected
+        # Default: "New Documents" (row 1)
         self._list.setCurrentRow(1)
 
         vbox.addWidget(self._list)
@@ -75,15 +75,18 @@ class SidebarWidget(QWidget):
     # ── Public API ─────────────────────────────────────────────────────────────
 
     def update_counts(self, counts: dict) -> None:
-        """Refresh count badges next to each view label."""
+        """Refresh count badges next to each view label.  ``counts`` is the
+        dict returned by ``DocumentStore.count_by_status()``."""
         def _sum(statuses):
             return sum(counts.get(s, 0) for s in statuses)
 
         badges = {
-            "dashboard": None,
-            "new":       _sum({"new"}),
-            "results":   _sum({"processed", "needs_review", "failed"}),
-            "history":   _sum({"approved", "exported", "skipped", "excluded", "confirmed_irrelevant"}),
+            "dashboard":  None,
+            "new":        _sum({"new"}),
+            "attention":  _sum({"needs_review", "failed", "skipped"}),
+            "results":    _sum({"processed", "approved"}),
+            "irrelevant": _sum({"confirmed_irrelevant", "excluded"}),
+            "history":    _sum({"exported"}),
         }
 
         for i in range(self._list.count()):
