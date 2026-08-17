@@ -1,157 +1,102 @@
-# Local Accountant Tool — Google Drive PDF Processor
+# Panda
 
-A simple local desktop tool for accountants.  
-Connects to Google Drive, downloads PDF invoices, parses them automatically,  
-and lets the accountant review, correct, approve, and export to Excel.
+Panda is a local, Hebrew-first desktop application for accounting-document processing. The current UI still uses the Hebrew product label `כלי חשבונאות` in places; Panda branding has not yet been fully migrated into the application.
 
-**No servers. No database. No cloud subscriptions.**  
-Everything runs on one computer and is stored in local JSON files.
+This repository documents the current implementation separately from known issues and proposed Panda 2.0 work. Start with [Current State](docs/CURRENT_STATE.md), [Architecture](docs/ARCHITECTURE.md), and the [Roadmap](docs/ROADMAP.md).
 
----
+## Product Overview
 
-## Features
+The implemented desktop workflow:
 
-- Scans Google Drive folders recursively for PDF files
-- Downloads new PDFs only (incremental)
-- Extracts and parses invoice fields automatically (supplier, date, invoice #, total)
-- Supports Hebrew and English invoices
-- Stores all state in `data/documents.json` — a plain JSON file you can inspect
-- Review & correction screen for every document
-- Status tracking: `new → processed / needs_review / failed → approved → exported`
-- Export approved documents to Excel with duplicate detection
-- Simple, clean PySide6 desktop UI
+- recursively discovers PDF files in a configured Google Drive folder;
+- downloads source PDFs to local storage and extracts text;
+- classifies accounting documents and extracts invoice fields;
+- validates suppliers and computes confidence;
+- routes documents through review, correction, approval, duplicate-resolution, irrelevant/excluded, export, and local-history workflows;
+- learns from selected user corrections; and
+- exports approved records to Excel.
 
----
+Panda runs locally. It has no application server or database.
 
-## Requirements
+## Technology
 
-- Python 3.11+
-- A Google Cloud service account with Drive read access
-- Windows / macOS / Linux
+- Python
+- PySide6 / Qt
+- Google Drive API
+- pdfplumber
+- pandas
+- openpyxl
+- local JSON and filesystem persistence
 
----
+Explicit dependency versions are recorded in `requirements.txt`. See [Architecture](docs/ARCHITECTURE.md) for component responsibilities.
 
-## Setup
+## Entry Points
 
-### 1. Clone and install dependencies
+### Current Desktop App
 
-```bash
-git clone <repo-url>
-cd google_drive_pdf_sync
-pip install -r requirements.txt
-```
+`run.py` is the active application entry point:
 
-### 2. Google Drive credentials
-
-1. Create a **Google Cloud project** and enable the **Google Drive API**.
-2. Create a **Service Account** and download its JSON key file.
-3. Share your Google Drive folder with the service account's email address (read-only is enough).
-4. Place the JSON key file at `credentials/service_account.json`  
-   (or point to it via `.env`).
-
-### 3. Configure `.env`
-
-Copy the example and fill in your values:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```
-GOOGLE_DRIVE_PARENT_FOLDER_ID=your_folder_id_here
-GOOGLE_SERVICE_ACCOUNT_FILE=credentials/service_account.json
-```
-
-The folder ID is the last part of the Google Drive folder URL:  
-`https://drive.google.com/drive/folders/`**`1AbCdEfGhIjK`**
-
----
-
-## Running the tool
-
-```bash
+```powershell
 python run.py
 ```
 
-The desktop window will open.
+### Legacy CLI
 
----
+`app/main.py` provides an older command-line pipeline:
 
-## Workflow
-
-| Step | Action | Button |
-|------|--------|--------|
-| 1 | Discover PDFs in Drive | **סרוק Drive** (Scan Drive) |
-| 2 | Download and parse all new files | **עבד מסמכים חדשים** (Process New) |
-| 3 | Review documents needing attention | Double-click any row → Review dialog |
-| 4 | Correct extracted fields if needed | Edit fields → **שמור תיקונים** (Save) |
-| 5 | Approve documents | **אשר מסמך** (Approve) in the review dialog |
-| 6 | Export to Excel | **ייצא לאקסל** (Export Approved) |
-
----
-
-## Local file structure
-
-```
-data/
-├── documents.json        ← all document state (single source of truth)
-├── settings.json         ← app settings (auto-created)
-├── downloads/            ← downloaded PDF files
-│   └── <folder>/<file>.pdf
-├── text/                 ← extracted plain text per document
-│   └── <drive_file_id>.txt
-├── output/               ← Excel exports
-│   └── invoices.xlsx
-├── processed/            ← (reserved)
-├── failed/               ← (reserved)
-└── state/                ← legacy CLI state (for old main.py)
-```
-
----
-
-## Document statuses
-
-| Status | Hebrew | Meaning |
-|--------|--------|---------|
-| `new` | חדש | Discovered in Drive, not yet processed |
-| `processed` | עובד | Parsed successfully (confidence ≥ 75 %) |
-| `needs_review` | לבדיקה | Parsed but low confidence or missing fields |
-| `failed` | שגיאה | Exception during download or parsing |
-| `approved` | מאושר | Accountant reviewed and approved |
-| `exported` | יוצא | Included in the Excel export |
-
----
-
-## Running tests
-
-```bash
-pytest tests/ -v
-```
-
-All existing parser, state, and text-helper tests are preserved.
-
----
-
-## Legacy CLI pipeline
-
-The original command-line pipeline still works:
-
-```bash
+```powershell
 python -m app.main
 ```
 
-This is independent of the desktop UI and uses the old `data/state/` tracking.
+The CLI uses legacy models and state persistence that overlap with the desktop architecture. It remains present today but is under reconsideration for Panda 2.0.
 
----
+## Setup
 
-## Troubleshooting
+Install the repository's declared dependencies:
 
-| Problem | Solution |
-|---------|----------|
-| `GOOGLE_DRIVE_PARENT_FOLDER_ID is missing` | Check your `.env` file |
-| `Service account file not found` | Check `GOOGLE_SERVICE_ACCOUNT_FILE` path |
-| PDFs not found in Drive | Make sure the service account email has access to the folder |
-| `No module named 'PySide6'` | Run `pip install -r requirements.txt` |
-| Hebrew text garbled | Normal for some PDFs — use the review dialog to correct manually |
+```powershell
+pip install -r requirements.txt
+```
+
+Create a local `.env` from the safe `.env.example` template and configure these names:
+
+```text
+GOOGLE_DRIVE_PARENT_FOLDER_ID
+GOOGLE_SERVICE_ACCOUNT_FILE
+```
+
+`.env` and real Google service-account credential files are local-only and must never be committed. Do not place real values in documentation or example files.
+
+## Running
+
+Desktop application:
+
+```powershell
+python run.py
+```
+
+Legacy CLI:
+
+```powershell
+python -m app.main
+```
+
+There is currently no packaged installer or formal release artifact.
+
+## Tests
+
+The test suite uses pytest. Current coverage, gaps, and the audit environment limitation are documented in [Panda Testing](docs/TESTING.md).
+
+## Documentation
+
+- [Current State](docs/CURRENT_STATE.md) — authoritative snapshot of implemented behavior and confirmed limitations
+- [Architecture](docs/ARCHITECTURE.md) — current components, boundaries, and architectural questions
+- [Product Flows](docs/PRODUCT_FLOWS.md) — end-to-end implemented workflows
+- [Data Model](docs/DATA_MODEL.md) — document entity, statuses, and runtime persistence
+- [UI Inventory](docs/UI_INVENTORY.md) — current screens, controls, states, and designer constraints
+- [Security and Privacy](docs/SECURITY_AND_PRIVACY.md) — sensitive-data boundaries and known findings
+- [Operations](docs/OPERATIONS.md) — local configuration, runtime files, backup, and recovery limits
+- [Testing](docs/TESTING.md) — current verification baseline and planned quality work
+- [Roadmap](docs/ROADMAP.md) — proposed path toward Panda 2.0
+- [Decision Records](docs/decisions/README.md) — lightweight ADR process for future decisions
+- [Changelog](CHANGELOG.md) — repository-maintenance history
