@@ -14,6 +14,8 @@ venv/
 # Environment variables
 # =========================
 .env
+.env.*
+!.env.example
 
 # =========================
 # IDE / Editors
@@ -35,28 +37,18 @@ Thumbs.db
 *.log
 
 # =========================
-# Data (חשוב מאוד בפרויקט שלך)
+# Runtime data
 # =========================
-
 data/
-# קבצי פלט
-data/output/
+output/
+downloads/
 *.xlsx
 
-# state (לא רוצים לשתף בין מפתחים)
-data/state/
-
-# קבצים זמניים
-data/temp/
-
-# קבצי טקסט
-data/text/
-
 # =========================
-# Credentials (סופר קריטי!)
+# Credentials
 # =========================
-credentials/
-*.json
+credentials/*
+!credentials/*.example.json
 
 # =========================
 # Testing / coverage
@@ -66,8 +58,12 @@ htmlcov/
 .pytest_cache/
 
 # =========================
+# Local development-tool settings
+# =========================
+.claude/settings.local.json
+
+# =========================
 # Misc
 # =========================
 *.bak
 *.tmp
-downloads/
