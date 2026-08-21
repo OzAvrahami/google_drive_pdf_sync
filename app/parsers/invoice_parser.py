@@ -124,9 +124,31 @@ _RE_NUM_FOOTER  = re.compile(
     re.IGNORECASE,
 )
 _RE_NUM_ENGLISH = re.compile(r'Invoice\s+(?:number|#|ID)\s*:?\s*([A-Za-z0-9]+)', re.IGNORECASE)
+
+# Matches: "חשבונית מס מס' : 3087"  "חשבון עסקה מס' 4567"  "דרישת תשלום מס' :1234"
+# The doc-type keyword must precede the מס' label so that unrelated ERP fields
+# (מפתח, מזהה, מחסן, סוכן) are never mistaken for invoice numbers.
+_RE_NUM_MAS_LABEL = re.compile(
+    r'(?:חשבון\s+עסקה|חשבונ[יו]ת\s+מס|דרישת\s+תשלום)'
+    r'\s+מס[\'״\u05f4]?\s*:?\s*([A-Za-z0-9]{2,})',
+    re.IGNORECASE,
+)
+
+# Matches: "מספר חשבונית: 1234"  "מספר מסמך 5678"  "מספר הזמנה: 9012"
+# Standalone label lines that appear without a doc-type prefix.
+_RE_NUM_STANDALONE = re.compile(
+    r'(?:מספר\s+(?:חשבונית|חשבון\s+עסקה|מסמך|הזמנה|אסמכתא)'
+    r'|מס[\'״\u05f4]?\s+(?:חשבונית|מסמך))'
+    r'\s*:?\s*([A-Za-z0-9]{2,})',
+    re.IGNORECASE,
+)
+
+# General heading pattern (lowest priority — most permissive, most prone to false matches).
+# \s*:?\s* handles both space-separated ("חשבונית מס 3087") and
+# colon-separated ("חשבונית מס: 3087" / "חשבונית מס מס' : 3087") formats.
 _RE_NUM_HEADING = re.compile(
     r'(?:חשבון\s+עסקה|חשבונ[יו]ת\s+מס(?:\s+(?!מספר)\S+)?|Tax\s+Invoice)'
-    r'\s+(?:מספר\s+)?\(?([A-Za-z0-9]{3,})\)?',
+    r'\s*:?\s*(?:מספר\s+)?\(?([A-Za-z0-9]{3,})\)?',
     re.IGNORECASE,
 )
 
@@ -144,7 +166,9 @@ _RE_DATE_ANY      = re.compile(r'\b(\d{1,2}[/.]\d{1,2}[/.]\d{4})\b')
 _RE_PAYMENT_DUE   = re.compile(r'לתשלום\s+עד|due\s+by|payment\s+due|due\s+on', re.IGNORECASE)
 
 _AMOUNT_PATTERNS = [
-    re.compile(rf'סה[{_Q}]כ\s*לתשלום\s*(?:בש[{_Q}\'"]+ח)?\s*₪?\s*([\d,]+(?:\.\d+)?)\s*₪?'),
+    # Primary: "סה"כ לתשלום: 3,902.26" — the final payable total.
+    # \s*:?\s* handles both "לתשלום 3902" and "לתשלום: 3,902.26" (colon-separated).
+    re.compile(rf'סה[{_Q}]כ\s*לתשלום\s*:?\s*(?:בש[{_Q}\'"]+ח)?\s*₪?\s*([\d,]+(?:\.\d+)?)\s*₪?'),
     re.compile(r'(?:Total\s+payable|Total\s+due|Amount\s+due|Invoice\s+Total)\s*:?\s*(?:ILS|USD|EUR|GBP)?\s*[₪$€£]?\s*([\d,]+(?:\.\d+)?)', re.IGNORECASE),
     re.compile(rf'סה[{_Q}]כ\s+כולל(?:\s+מע[{_Q}]מ)?\s*:?\s*₪?\s*([\d,]+(?:\.\d+)?)\s*₪?'),
     re.compile(rf'סה[{_Q}]כ\s+מחיר\s+([\d,]+(?:\.\d+)?)\s*ש[{_Q}\'"]+ח'),
@@ -193,15 +217,27 @@ _RE_NAME_PREFIX_NOISE = re.compile(
 def _extract_invoice_number(text: str) -> Optional[str]:
     m = _RE_NUM_FOOTER.search(text)
     if m:
+        logger.debug("invoice_number: footer pattern → %r", m.group(1))
         return m.group(1)
     m = _RE_NUM_ENGLISH.search(text)
     if m:
+        logger.debug("invoice_number: English label → %r", m.group(1))
+        return m.group(1)
+    m = _RE_NUM_MAS_LABEL.search(text)
+    if m:
+        logger.debug("invoice_number: מס' label → %r", m.group(1))
+        return m.group(1)
+    m = _RE_NUM_STANDALONE.search(text)
+    if m:
+        logger.debug("invoice_number: standalone מספר label → %r", m.group(1))
         return m.group(1)
     m = _RE_NUM_HEADING.search(text)
     if m:
         val = m.group(1)
         if len(val) >= 3 and val not in {"מקור", "מסמך", "מספר"}:
+            logger.debug("invoice_number: heading pattern → %r", val)
             return val
+    logger.debug("invoice_number: no pattern matched — returning None")
     return None
 
 
@@ -226,18 +262,26 @@ def _extract_invoice_date(text: str) -> Optional[str]:
 
 
 def _extract_amount(text: str) -> Optional[float]:
-    for pattern in _AMOUNT_PATTERNS:
+    for i, pattern in enumerate(_AMOUNT_PATTERNS):
         m = pattern.search(text)
         if m:
             val = _parse_amount(m.group(1))
             if val is not None:
+                logger.debug("amount: pattern[%d] matched %r → %s", i, m.group(1), val)
                 return val
-    # Fallback: last סה"כ VALUE in document
+    # Fallback: last סה"כ value in document (may be pre-VAT — only reached when
+    # none of the "final payable" patterns above matched).
     last = None
+    last_raw = None
     for m in _RE_SEHAKOL_FALLBACK.finditer(text):
         val = _parse_amount(m.group(1))
         if val is not None:
             last = val
+            last_raw = m.group(1)
+    if last is not None:
+        logger.debug("amount: fallback (סה\"כ) matched %r → %s", last_raw, last)
+    else:
+        logger.debug("amount: no pattern matched — returning None")
     return last
 
 
@@ -423,6 +467,11 @@ def _apply_corrections(result: dict, correction_map: dict) -> None:
     for parser_key, correction_field in _PARSER_TO_CORRECTION_FIELD.items():
         extracted_val = result.get(parser_key)
         if extracted_val is None:
+            logger.debug(
+                "correction_map: skipping %r — parser returned None "
+                "(no extraction candidate; correction map cannot help).",
+                parser_key,
+            )
             continue
 
         # Defense-in-depth: never look up a supplier correction when the
