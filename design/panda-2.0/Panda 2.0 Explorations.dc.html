@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=Rubik:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;background:#e6e4df;}
+  a{color:#4d5bb3;text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  input::placeholder{color:#a7a29a;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#cfcbc4;border-radius:6px;border:2px solid transparent;background-clip:content-box;}
+</style>
+</helmet>
+
+<section style="padding:52px;display:flex;flex-direction:column;gap:44px;background:#e6e4df;font-family:'IBM Plex Sans Hebrew',system-ui,sans-serif;color:#26241f;align-items:flex-start;">
+
+  <div dir="ltr" style="width:1180px;background:#ffffff;border:1px solid #dcd9d3;border-radius:14px;padding:34px 38px;box-shadow:0 1px 2px rgba(0,0,0,.04);">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="width:34px;height:34px;border-radius:9px;background:#4d5bb3;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:19px;">פ</div>
+      <div style="font-size:23px;font-weight:700;letter-spacing:-.2px;">Panda 2.0 — UX model &amp; two visual directions</div>
+    </div>
+    <div style="margin-top:8px;color:#6b675f;font-size:14px;max-width:760px;line-height:1.55;">Grounded in the eight current-state docs. The app is a Hebrew-first, RTL desktop work queue: documents enter from Google Drive, get parsed, and flow through review → approval → Excel export. Below is the proposed model; the two windows show the same real screen (Needs Attention) in two aesthetics — pick <b>1A</b> or <b>1B</b> and I build the full set.</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:30px 40px;margin-top:28px;">
+      <div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:.08em;color:#4d5bb3;text-transform:uppercase;">A · Information architecture</div>
+        <div style="margin-top:10px;font-size:13.5px;line-height:1.7;color:#3a362f;">One <b>work queue</b>, six locations in the right rail. Every location is a filtered view of the same document store, not a separate screen:
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:5px;">
+            <div><b>Overview</b> — what needs me now, and today's throughput.</div>
+            <div><b>Inbox</b> — discovered / re-queued, not yet processed <span style="color:#93908a;">(status <code style="font-family:'IBM Plex Mono';">new</code>)</span>.</div>
+            <div><b>Needs Attention</b> — everything that can't auto-clear.</div>
+            <div><b>Ready</b> — processed &amp; approved, awaiting export.</div>
+            <div><b>Irrelevant</b> — user-confirmed exclusions.</div>
+            <div><b>History</b> — exported records.</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:.08em;color:#4d5bb3;text-transform:uppercase;">B · A day in Panda</div>
+        <div style="margin-top:10px;font-size:13.5px;line-height:1.7;color:#3a362f;">
+          <b>1.</b> Scan Drive (background task, non-blocking) → new docs land in Inbox.<br>
+          <b>2.</b> Process → high-confidence (≥0.75) auto-advance to Ready; the rest route to Needs Attention with a reason.<br>
+          <b>3.</b> Work the attention queue in the <b>Document Workspace</b> — source + fields side by side, keyboard next/prev, no modal.<br>
+          <b>4.</b> Correct, approve (single or batch), resolve duplicates in-context.<br>
+          <b>5.</b> Export approved → Excel; records move to History.
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:.08em;color:#4d5bb3;text-transform:uppercase;">C · Biggest changes vs today</div>
+        <div style="margin-top:10px;font-size:13.5px;line-height:1.7;color:#3a362f;">
+          • Modal review → embedded <b>Document Workspace</b> with source preview (no external PDF app).<br>
+          • Blocking progress dialog → <b>non-blocking task dock</b>.<br>
+          • No batch approve → <b>multi-select batch actions</b>.<br>
+          • No duplicate comparison → <b>side-by-side resolve</b>.<br>
+          • Raw status dropdown → guided actions; numbers sort numerically, not as text.
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:.08em;color:#4d5bb3;text-transform:uppercase;">D · Old → new terminology</div>
+        <div style="margin-top:10px;font-size:12.5px;line-height:1.6;color:#3a362f;">
+          <div style="display:grid;grid-template-columns:1.1fr 1fr 0.9fr;gap:2px 12px;">
+            <div style="font-weight:700;color:#93908a;font-size:11px;">Internal status</div><div style="font-weight:700;color:#93908a;font-size:11px;">User label (he)</div><div style="font-weight:700;color:#93908a;font-size:11px;">Location</div>
+            <div style="font-family:'IBM Plex Mono';font-size:11.5px;">new</div><div>חדש</div><div>Inbox</div>
+            <div style="font-family:'IBM Plex Mono';font-size:11.5px;">needs_review</div><div>לבדיקה</div><div>Needs Attention</div>
+            <div style="font-family:'IBM Plex Mono';font-size:11.5px;">failed</div><div>נכשל</div><div>Needs Attention</div>
+            <div style="font-family:'IBM Plex Mono';font-size:11.5px;">skipped</div><div>דולג</div><div>Needs Attention</div>
+            <div style="font-family:'IBM Plex Mono';font-size:11.5px;">processed</div><div>עובד</div><div>Ready</div>
+            <div style="font-family:'IBM Plex Mono';font-size:11.5px;">approved</div><div>אושר</div><div>Ready</div>
+            <div style="font-family:'IBM Plex Mono';font-size:11.5px;">exported</div><div>יוצא</div><div>History</div>
+            <div style="font-family:'IBM Plex Mono';font-size:11.5px;">confirmed_irrelevant</div><div>לא רלוונטי</div><div>Irrelevant</div>
+          </div>
+          <div style="margin-top:8px;color:#93908a;font-size:11.5px;">Duplicate / manually-corrected / exported-to-Excel stay as <i>flags</i>, shown as chips — never primary statuses. Legacy <code style="font-family:'IBM Plex Mono';">excluded</code> maps to לא רלוונטי.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:56px;align-items:flex-start;">
+
+    <!-- ============ OPTION 1A — LEDGER ============ -->
+    <div id="1a" style="display:flex;flex-direction:column;gap:16px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="font-family:'IBM Plex Mono';font-weight:600;font-size:13px;background:#26241f;color:#fff;padding:4px 11px;border-radius:7px;">1A</div>
+        <div style="font-size:19px;font-weight:700;">Ledger</div>
+        <div style="font-size:13px;color:#6b675f;">Warm paper · slate-blue accent · IBM Plex Sans Hebrew · hairline borders, quiet badges</div>
+      </div>
+
+      <div dir="rtl" lang="he" style="width:1440px;height:820px;background:#f7f6f2;border:1px solid #dcd9d3;border-radius:12px;overflow:hidden;display:flex;font-family:'IBM Plex Sans Hebrew',sans-serif;color:#26241f;box-shadow:0 1px 2px rgba(0,0,0,.05),0 18px 44px rgba(0,0,0,.09);">
+        <aside style="width:224px;flex:0 0 224px;background:#fbfaf8;border-inline-start:1px solid #e7e5e0;display:flex;flex-direction:column;">
+          <div style="height:57px;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid #eeece7;">
+            <div style="width:27px;height:27px;border-radius:7px;background:#4d5bb3;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;">פ</div>
+            <div style="font-weight:700;font-size:16px;">Panda</div>
+            <div style="margin-inline-start:auto;font-family:'IBM Plex Mono';font-size:11px;color:#a7a29a;">2.0</div>
+          </div>
+          <div style="padding:12px 0 4px;flex:1;overflow:auto;">
+            <sc-for list="{{ nav }}" as="item" hint-placeholder-count="6">
+              <sc-if value="{{ item.active }}">
+                <a href="#1a" style="position:relative;display:flex;align-items:center;gap:9px;height:39px;margin:2px 10px;padding:0 14px;border-radius:9px;background:#edeef9;color:#3a45a0;font-size:14px;font-weight:600;">
+                  <span style="position:absolute;inset-inline-start:-2px;top:9px;bottom:9px;width:3px;border-radius:3px;background:#4d5bb3;"></span>
+                  <span style="flex:1;">{{ item.he }}</span>
+                  <span style="font-family:'IBM Plex Mono';font-size:11.5px;font-weight:600;background:#fbf1dd;color:#9a6a12;padding:1px 8px;border-radius:20px;">{{ item.count }}</span>
+                </a>
+              </sc-if>
+              <sc-if value="{{ item.inactive }}">
+                <a href="#1a" style="display:flex;align-items:center;gap:9px;height:39px;margin:2px 10px;padding:0 14px;border-radius:9px;color:#57534b;font-size:14px;font-weight:500;">
+                  <span style="flex:1;">{{ item.he }}</span>
+                  <sc-if value="{{ item.count }}"><span style="font-family:'IBM Plex Mono';font-size:11.5px;font-weight:500;background:#efece7;color:#8a857d;padding:1px 8px;border-radius:20px;">{{ item.count }}</span></sc-if>
+                </a>
+              </sc-if>
+            </sc-for>
+          </div>
+          <div style="padding:12px;border-top:1px solid #eeece7;">
+            <div style="border:1px solid #e7e5e0;border-radius:10px;background:#fff;padding:11px 12px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="width:9px;height:9px;border-radius:50%;background:#4d5bb3;box-shadow:0 0 0 3px #edeef9;"></span>
+                <span style="font-size:12.5px;font-weight:600;">סורק את Drive</span>
+                <span style="margin-inline-start:auto;font-family:'IBM Plex Mono';font-size:11px;color:#8a857d;">142/300</span>
+              </div>
+              <div style="margin-top:9px;height:5px;border-radius:3px;background:#eeece7;overflow:hidden;"><div style="height:100%;width:47%;background:#4d5bb3;border-radius:3px;"></div></div>
+              <div style="margin-top:8px;font-size:11px;color:#a7a29a;">הושלם: עיבוד 18 מסמכים · לפני 4 דק׳</div>
+            </div>
+          </div>
+        </aside>
+
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+          <div style="height:57px;flex:0 0 57px;display:flex;align-items:center;gap:16px;padding:0 22px;background:#fff;border-bottom:1px solid #e7e5e0;">
+            <div>
+              <div style="font-size:16px;font-weight:700;">דורש טיפול</div>
+              <div style="font-size:11.5px;color:#a7a29a;margin-top:1px;">11 מסמכים ממתינים לפעולה</div>
+            </div>
+            <div style="margin-inline-start:20px;flex:1;max-width:400px;position:relative;">
+              <span style="position:absolute;inset-inline-end:12px;top:50%;transform:translateY(-50%);width:14px;height:14px;border:1.6px solid #b7b2a9;border-radius:50%;"></span>
+              <input placeholder="חיפוש לפי שם קובץ, ספק או מספר מסמך" style="width:100%;height:36px;border:1px solid #dcd9d3;border-radius:9px;background:#faf9f7;padding:0 38px 0 12px;font-size:13px;font-family:inherit;color:#26241f;outline:none;">
+            </div>
+            <div style="margin-inline-start:auto;display:flex;align-items:center;gap:9px;">
+              <button style="height:35px;padding:0 14px;border:1px solid #dcd9d3;border-radius:9px;background:#fff;color:#3a362f;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;">סריקת Drive</button>
+              <button style="height:35px;padding:0 16px;border:none;border-radius:9px;background:#4d5bb3;color:#fff;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;">עיבוד מסמכים</button>
+            </div>
+          </div>
+
+          <div style="height:45px;flex:0 0 45px;display:flex;align-items:center;gap:14px;padding:0 22px;background:#edeef9;border-bottom:1px solid #dcdef4;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="width:17px;height:17px;border-radius:5px;background:#4d5bb3;display:flex;align-items:center;justify-content:center;"><svg width="11" height="11" viewBox="0 0 12 12"><polyline points="2,6.5 5,9 10,3" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span style="font-size:13px;font-weight:600;color:#3a45a0;">2 נבחרו</span>
+            </div>
+            <span style="width:1px;height:20px;background:#cdcfe8;"></span>
+            <button style="height:30px;padding:0 13px;border:none;border-radius:7px;background:#2f7a44;color:#fff;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;">אשר (2)</button>
+            <button style="height:30px;padding:0 12px;border:1px solid #cdcfe8;border-radius:7px;background:#fff;color:#3a45a0;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;">עבד מחדש</button>
+            <button style="height:30px;padding:0 12px;border:1px solid #e6cfcf;border-radius:7px;background:#fff;color:#c0362c;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;">סמן כלא רלוונטי</button>
+            <button style="margin-inline-start:auto;height:30px;padding:0 10px;border:none;border-radius:7px;background:transparent;color:#6b675f;font-size:12.5px;font-family:inherit;cursor:pointer;">נקה בחירה</button>
+          </div>
+
+          <div style="display:grid;grid-template-columns:44px minmax(0,1fr) 156px 104px 128px 118px 138px 196px;align-items:center;height:38px;background:#fbfaf8;border-bottom:1px solid #e7e5e0;font-size:11.5px;font-weight:600;color:#93908a;">
+            <div style="text-align:center;"><span style="display:inline-block;width:16px;height:16px;border:1.5px solid #cbc6be;border-radius:4px;"></span></div>
+            <div style="padding:0 14px;">מסמך</div>
+            <div style="text-align:left;padding-inline-end:6px;">מספר מסמך</div>
+            <div style="text-align:left;">תאריך</div>
+            <div style="text-align:left;padding-inline-end:8px;">סה״כ</div>
+            <div>סטטוס</div>
+            <div>ביטחון</div>
+            <div>סיבה</div>
+          </div>
+
+          <div style="flex:1;overflow:auto;background:#fff;">
+            <sc-for list="{{ rows }}" as="row" hint-placeholder-count="8">
+              <div style="position:relative;display:grid;grid-template-columns:44px minmax(0,1fr) 156px 104px 128px 118px 138px 196px;align-items:center;min-height:56px;border-bottom:1px solid #f1efea;background: {{ row.rowBgA }};">
+                <sc-if value="{{ row.selected }}"><span style="position:absolute;inset-inline-start:0;top:0;bottom:0;width:3px;background:#4d5bb3;"></span></sc-if>
+                <div style="text-align:center;">
+                  <sc-if value="{{ row.selected }}"><span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;background:#4d5bb3;border-radius:4px;"><svg width="10" height="10" viewBox="0 0 12 12"><polyline points="2,6.5 5,9 10,3" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></sc-if>
+                  <sc-if value="{{ row.inactive }}"><span style="display:inline-block;width:16px;height:16px;border:1.5px solid #cbc6be;border-radius:4px;"></span></sc-if>
+                </div>
+                <div style="min-width:0;padding:7px 14px;">
+                  <div style="display:flex;align-items:center;gap:7px;">
+                    <span style="font-weight:600;font-size:13.5px;color:#26241f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ row.supplier }}</span>
+                    <sc-if value="{{ row.corrected }}"><span style="flex:0 0 auto;font-size:10.5px;font-weight:600;color:#2b6a63;background:#e2f1ef;padding:1px 6px;border-radius:5px;">תוקן ידנית</span></sc-if>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:7px;margin-top:3px;">
+                    <span style="direction:ltr;font-family:'IBM Plex Mono';font-size:11px;color:#93908a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;">{{ row.file }}</span>
+                    <span style="color:#cbc6be;">·</span>
+                    <span style="font-size:11px;color:#b0aaa1;white-space:nowrap;">{{ row.folder }}</span>
+                  </div>
+                </div>
+                <div style="direction:ltr;text-align:left;padding-inline-end:6px;font-family:'IBM Plex Mono';font-size:12px;color:#57534b;">{{ row.docNumStr }}</div>
+                <div style="direction:ltr;text-align:left;font-family:'IBM Plex Mono';font-size:12px;color:#6b675f;">{{ row.dateStr }}</div>
+                <div style="direction:ltr;text-align:left;padding-inline-end:8px;font-variant-numeric:tabular-nums;font-family:'IBM Plex Mono';font-size:13px;font-weight:600;color:#26241f;">{{ row.amountStr }}</div>
+                <div style="display:flex;align-items:center;gap:7px;">
+                  <span style="width:7px;height:7px;border-radius:50%;background: {{ row.statusColor }};"></span>
+                  <span style="font-size:12px;font-weight:600;color: {{ row.statusColor }};">{{ row.statusHe }}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;padding-inline-end:12px;">
+                  <div style="flex:1;height:5px;border-radius:3px;background:#eeece7;overflow:hidden;"><div style="height:100%;width: {{ row.confW }}%;background: {{ row.confColor }};border-radius:3px;"></div></div>
+                  <span style="direction:ltr;font-family:'IBM Plex Mono';font-size:11px;color:#6b675f;min-width:26px;text-align:left;">{{ row.confPct }}</span>
+                </div>
+                <div style="padding-inline-end:12px;display:flex;align-items:center;gap:6px;">
+                  <sc-if value="{{ row.isDup }}"><span style="width:6px;height:6px;transform:rotate(45deg);background:#7a3fb0;"></span></sc-if>
+                  <span style="font-size:11px;font-weight:600;color: {{ row.reasonColor }};background: {{ row.reasonBg }};padding:3px 9px;border-radius:6px;white-space:nowrap;">{{ row.reasonHe }}</span>
+                </div>
+                <sc-if value="{{ row.hovered }}">
+                  <div style="position:absolute;inset-inline-start:10px;top:50%;transform:translateY(-50%);display:flex;gap:6px;background:#fff;padding:4px;border-radius:9px;box-shadow:0 2px 8px rgba(0,0,0,.12);border:1px solid #eeece7;">
+                    <button style="height:28px;padding:0 11px;border:1px solid #dcd9d3;border-radius:7px;background:#fff;font-size:12px;font-weight:600;font-family:inherit;color:#3a362f;cursor:pointer;">פתח</button>
+                    <button style="height:28px;padding:0 11px;border:1px solid #cdcfe8;border-radius:7px;background:#fff;font-size:12px;font-weight:600;font-family:inherit;color:#3a45a0;cursor:pointer;">נסה שוב</button>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="width:1440px;background:#fff;border:1px solid #dcd9d3;border-radius:12px;padding:18px 22px;display:flex;flex-wrap:wrap;gap:26px 34px;align-items:center;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.06em;color:#93908a;text-transform:uppercase;">System</div>
+        <sc-for list="{{ statuses }}" as="s" hint-placeholder-count="8">
+          <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color: {{ s.color }};"><span style="width:7px;height:7px;border-radius:50%;background: {{ s.color }};"></span>{{ s.he }}</span>
+        </sc-for>
+        <span style="width:1px;height:26px;background:#e7e5e0;"></span>
+        <button style="height:32px;padding:0 14px;border:none;border-radius:8px;background:#4d5bb3;color:#fff;font-size:12.5px;font-weight:600;font-family:inherit;">ראשי</button>
+        <button style="height:32px;padding:0 14px;border:1px solid #dcd9d3;border-radius:8px;background:#fff;color:#3a362f;font-size:12.5px;font-weight:600;font-family:inherit;">משני</button>
+        <button style="height:32px;padding:0 14px;border:1px solid #e6cfcf;border-radius:8px;background:#fff;color:#c0362c;font-size:12.5px;font-weight:600;font-family:inherit;">הרסני</button>
+        <div style="position:relative;"><input placeholder="שדה קלט" style="height:32px;width:150px;border:1px solid #dcd9d3;border-radius:8px;background:#faf9f7;padding:0 12px;font-size:12.5px;font-family:inherit;"></div>
+      </div>
+    </div>
+
+    <!-- ============ OPTION 1B — CONSOLE ============ -->
+    <div id="1b" style="display:flex;flex-direction:column;gap:16px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="font-family:'IBM Plex Mono';font-weight:600;font-size:13px;background:#1f2733;color:#fff;padding:4px 11px;border-radius:7px;">1B</div>
+        <div style="font-size:19px;font-weight:700;">Console</div>
+        <div style="font-size:13px;color:#6b675f;">Cool slate · dark work rail · teal accent · Rubik · layered surfaces, soft pill badges</div>
+      </div>
+
+      <div dir="rtl" lang="he" style="width:1440px;height:820px;background:#eef1f5;border:1px solid #cdd3dc;border-radius:12px;overflow:hidden;display:flex;font-family:'Rubik',sans-serif;color:#1e2530;box-shadow:0 1px 2px rgba(0,0,0,.05),0 18px 44px rgba(0,0,0,.11);">
+        <aside style="width:224px;flex:0 0 224px;background:#1f2733;display:flex;flex-direction:column;">
+          <div style="height:57px;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid #2b3543;">
+            <div style="width:27px;height:27px;border-radius:7px;background:#0f8f8a;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;">פ</div>
+            <div style="font-weight:600;font-size:16px;color:#f1f4f7;">Panda</div>
+            <div style="margin-inline-start:auto;font-family:'IBM Plex Mono';font-size:11px;color:#6b7480;">2.0</div>
+          </div>
+          <div style="padding:12px 0 4px;flex:1;overflow:auto;">
+            <sc-for list="{{ nav }}" as="item" hint-placeholder-count="6">
+              <sc-if value="{{ item.active }}">
+                <a href="#1b" style="position:relative;display:flex;align-items:center;gap:9px;height:39px;margin:2px 10px;padding:0 14px;border-radius:9px;background:#2b3543;color:#fff;font-size:14px;font-weight:500;">
+                  <span style="position:absolute;inset-inline-start:-2px;top:9px;bottom:9px;width:3px;border-radius:3px;background:#1fb6ad;"></span>
+                  <span style="flex:1;">{{ item.he }}</span>
+                  <span style="font-family:'IBM Plex Mono';font-size:11.5px;font-weight:500;background:#3a2f14;color:#f0b64a;padding:1px 8px;border-radius:20px;">{{ item.count }}</span>
+                </a>
+              </sc-if>
+              <sc-if value="{{ item.inactive }}">
+                <a href="#1b" style="display:flex;align-items:center;gap:9px;height:39px;margin:2px 10px;padding:0 14px;border-radius:9px;color:#aab2bd;font-size:14px;font-weight:400;">
+                  <span style="flex:1;">{{ item.he }}</span>
+                  <sc-if value="{{ item.count }}"><span style="font-family:'IBM Plex Mono';font-size:11.5px;background:#2b3543;color:#8a93a1;padding:1px 8px;border-radius:20px;">{{ item.count }}</span></sc-if>
+                </a>
+              </sc-if>
+            </sc-for>
+          </div>
+          <div style="padding:12px;border-top:1px solid #2b3543;">
+            <div style="border:1px solid #313c4b;border-radius:10px;background:#26303d;padding:11px 12px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="width:9px;height:9px;border-radius:50%;background:#1fb6ad;box-shadow:0 0 0 3px rgba(31,182,173,.2);"></span>
+                <span style="font-size:12.5px;font-weight:500;color:#e6eaef;">סורק את Drive</span>
+                <span style="margin-inline-start:auto;font-family:'IBM Plex Mono';font-size:11px;color:#8a93a1;">142/300</span>
+              </div>
+              <div style="margin-top:9px;height:5px;border-radius:3px;background:#313c4b;overflow:hidden;"><div style="height:100%;width:47%;background:#1fb6ad;border-radius:3px;"></div></div>
+              <div style="margin-top:8px;font-size:11px;color:#7c8592;">הושלם: עיבוד 18 מסמכים · לפני 4 דק׳</div>
+            </div>
+          </div>
+        </aside>
+
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#eef1f5;">
+          <div style="height:57px;flex:0 0 57px;display:flex;align-items:center;gap:16px;padding:0 22px;background:#fff;border-bottom:1px solid #dbe0e8;">
+            <div>
+              <div style="font-size:16px;font-weight:600;">דורש טיפול</div>
+              <div style="font-size:11.5px;color:#949cab;margin-top:1px;">11 מסמכים ממתינים לפעולה</div>
+            </div>
+            <div style="margin-inline-start:20px;flex:1;max-width:400px;position:relative;">
+              <span style="position:absolute;inset-inline-end:12px;top:50%;transform:translateY(-50%);width:14px;height:14px;border:1.6px solid #a7afbb;border-radius:50%;"></span>
+              <input placeholder="חיפוש לפי שם קובץ, ספק או מספר מסמך" style="width:100%;height:36px;border:1px solid #d4dae2;border-radius:9px;background:#f4f6f9;padding:0 38px 0 12px;font-size:13px;font-family:inherit;color:#1e2530;outline:none;">
+            </div>
+            <div style="margin-inline-start:auto;display:flex;align-items:center;gap:9px;">
+              <button style="height:35px;padding:0 14px;border:1px solid #d4dae2;border-radius:9px;background:#fff;color:#2a323d;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;">סריקת Drive</button>
+              <button style="height:35px;padding:0 16px;border:none;border-radius:9px;background:#0f8f8a;color:#fff;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;">עיבוד מסמכים</button>
+            </div>
+          </div>
+
+          <div style="height:45px;flex:0 0 45px;display:flex;align-items:center;gap:14px;padding:0 22px;background:#e2f2f1;border-bottom:1px solid #c4e4e1;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="width:17px;height:17px;border-radius:5px;background:#0f8f8a;display:flex;align-items:center;justify-content:center;"><svg width="11" height="11" viewBox="0 0 12 12"><polyline points="2,6.5 5,9 10,3" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span style="font-size:13px;font-weight:600;color:#0c6f6a;">2 נבחרו</span>
+            </div>
+            <span style="width:1px;height:20px;background:#a9d6d2;"></span>
+            <button style="height:30px;padding:0 13px;border:none;border-radius:7px;background:#2f7a44;color:#fff;font-size:12.5px;font-weight:500;font-family:inherit;cursor:pointer;">אשר (2)</button>
+            <button style="height:30px;padding:0 12px;border:1px solid #a9d6d2;border-radius:7px;background:#fff;color:#0c6f6a;font-size:12.5px;font-weight:500;font-family:inherit;cursor:pointer;">עבד מחדש</button>
+            <button style="height:30px;padding:0 12px;border:1px solid #e6cfcf;border-radius:7px;background:#fff;color:#c0362c;font-size:12.5px;font-weight:500;font-family:inherit;cursor:pointer;">סמן כלא רלוונטי</button>
+            <button style="margin-inline-start:auto;height:30px;padding:0 10px;border:none;border-radius:7px;background:transparent;color:#5b6472;font-size:12.5px;font-family:inherit;cursor:pointer;">נקה בחירה</button>
+          </div>
+
+          <div style="padding:14px 16px 0;">
+            <div style="background:#fff;border:1px solid #dbe0e8;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,45,.04);">
+              <div style="display:grid;grid-template-columns:44px minmax(0,1fr) 156px 104px 128px 118px 138px 196px;align-items:center;height:38px;background:#f4f6f9;border-bottom:1px solid #e3e8ee;font-size:11.5px;font-weight:500;color:#8b93a2;">
+                <div style="text-align:center;"><span style="display:inline-block;width:16px;height:16px;border:1.5px solid #c2cad4;border-radius:4px;"></span></div>
+                <div style="padding:0 14px;">מסמך</div>
+                <div style="text-align:left;padding-inline-end:6px;">מספר מסמך</div>
+                <div style="text-align:left;">תאריך</div>
+                <div style="text-align:left;padding-inline-end:8px;">סה״כ</div>
+                <div>סטטוס</div>
+                <div>ביטחון</div>
+                <div>סיבה</div>
+              </div>
+              <sc-for list="{{ rows }}" as="row" hint-placeholder-count="8">
+                <div style="position:relative;display:grid;grid-template-columns:44px minmax(0,1fr) 156px 104px 128px 118px 138px 196px;align-items:center;min-height:56px;border-bottom:1px solid #eef1f5;background: {{ row.rowBgB }};">
+                  <sc-if value="{{ row.selected }}"><span style="position:absolute;inset-inline-start:0;top:0;bottom:0;width:3px;background:#0f8f8a;"></span></sc-if>
+                  <div style="text-align:center;">
+                    <sc-if value="{{ row.selected }}"><span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;background:#0f8f8a;border-radius:4px;"><svg width="10" height="10" viewBox="0 0 12 12"><polyline points="2,6.5 5,9 10,3" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></sc-if>
+                    <sc-if value="{{ row.inactive }}"><span style="display:inline-block;width:16px;height:16px;border:1.5px solid #c2cad4;border-radius:4px;"></span></sc-if>
+                  </div>
+                  <div style="min-width:0;padding:7px 14px;">
+                    <div style="display:flex;align-items:center;gap:7px;">
+                      <span style="font-weight:500;font-size:13.5px;color:#1e2530;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ row.supplier }}</span>
+                      <sc-if value="{{ row.corrected }}"><span style="flex:0 0 auto;font-size:10.5px;font-weight:500;color:#0c6f6a;background:#e2f2f1;padding:1px 6px;border-radius:5px;">תוקן ידנית</span></sc-if>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:7px;margin-top:3px;">
+                      <span style="direction:ltr;font-family:'IBM Plex Mono';font-size:11px;color:#8b93a2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;">{{ row.file }}</span>
+                      <span style="color:#c2cad4;">·</span>
+                      <span style="font-size:11px;color:#a7afbb;white-space:nowrap;">{{ row.folder }}</span>
+                    </div>
+                  </div>
+                  <div style="direction:ltr;text-align:left;padding-inline-end:6px;font-family:'IBM Plex Mono';font-size:12px;color:#4a5462;">{{ row.docNumStr }}</div>
+                  <div style="direction:ltr;text-align:left;font-family:'IBM Plex Mono';font-size:12px;color:#5b6472;">{{ row.dateStr }}</div>
+                  <div style="direction:ltr;text-align:left;padding-inline-end:8px;font-variant-numeric:tabular-nums;font-family:'IBM Plex Mono';font-size:13px;font-weight:500;color:#1e2530;">{{ row.amountStr }}</div>
+                  <div><span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:500;color: {{ row.statusColor }};background: {{ row.statusBg }};padding:3px 9px;border-radius:20px;"><span style="width:6px;height:6px;border-radius:50%;background: {{ row.statusColor }};"></span>{{ row.statusHe }}</span></div>
+                  <div style="display:flex;align-items:center;gap:8px;padding-inline-end:12px;">
+                    <div style="flex:1;height:5px;border-radius:3px;background:#e3e8ee;overflow:hidden;"><div style="height:100%;width: {{ row.confW }}%;background: {{ row.confColor }};border-radius:3px;"></div></div>
+                    <span style="direction:ltr;font-family:'IBM Plex Mono';font-size:11px;color:#5b6472;min-width:26px;text-align:left;">{{ row.confPct }}</span>
+                  </div>
+                  <div style="padding-inline-end:12px;display:flex;align-items:center;gap:6px;">
+                    <sc-if value="{{ row.isDup }}"><span style="width:6px;height:6px;transform:rotate(45deg);background:#7a3fb0;"></span></sc-if>
+                    <span style="font-size:11px;font-weight:500;color: {{ row.reasonColor }};background: {{ row.reasonBg }};padding:3px 9px;border-radius:20px;white-space:nowrap;">{{ row.reasonHe }}</span>
+                  </div>
+                  <sc-if value="{{ row.hovered }}">
+                    <div style="position:absolute;inset-inline-start:10px;top:50%;transform:translateY(-50%);display:flex;gap:6px;background:#fff;padding:4px;border-radius:9px;box-shadow:0 2px 10px rgba(20,30,45,.16);border:1px solid #e3e8ee;">
+                      <button style="height:28px;padding:0 11px;border:1px solid #d4dae2;border-radius:7px;background:#fff;font-size:12px;font-weight:500;font-family:inherit;color:#2a323d;cursor:pointer;">פתח</button>
+                      <button style="height:28px;padding:0 11px;border:1px solid #a9d6d2;border-radius:7px;background:#fff;font-size:12px;font-weight:500;font-family:inherit;color:#0c6f6a;cursor:pointer;">נסה שוב</button>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="width:1440px;background:#fff;border:1px solid #dbe0e8;border-radius:12px;padding:18px 22px;display:flex;flex-wrap:wrap;gap:20px 26px;align-items:center;">
+        <div style="font-size:11px;font-weight:600;letter-spacing:.06em;color:#949cab;text-transform:uppercase;">System</div>
+        <sc-for list="{{ statuses }}" as="s" hint-placeholder-count="8">
+          <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:500;color: {{ s.color }};background: {{ s.bg }};padding:3px 10px;border-radius:20px;"><span style="width:6px;height:6px;border-radius:50%;background: {{ s.color }};"></span>{{ s.he }}</span>
+        </sc-for>
+        <span style="width:1px;height:26px;background:#dbe0e8;"></span>
+        <button style="height:32px;padding:0 14px;border:none;border-radius:8px;background:#0f8f8a;color:#fff;font-size:12.5px;font-weight:500;font-family:inherit;">ראשי</button>
+        <button style="height:32px;padding:0 14px;border:1px solid #d4dae2;border-radius:8px;background:#fff;color:#2a323d;font-size:12.5px;font-weight:500;font-family:inherit;">משני</button>
+        <button style="height:32px;padding:0 14px;border:1px solid #e6cfcf;border-radius:8px;background:#fff;color:#c0362c;font-size:12.5px;font-weight:500;font-family:inherit;">הרסני</button>
+        <input placeholder="שדה קלט" style="height:32px;width:150px;border:1px solid #d4dae2;border-radius:8px;background:#f4f6f9;padding:0 12px;font-size:12.5px;font-family:inherit;">
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============ DOCUMENT WORKSPACE (priority screen, Ledger styling) ============ -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="font-family:'IBM Plex Mono';font-weight:600;font-size:13px;background:#4d5bb3;color:#fff;padding:4px 11px;border-radius:7px;">WS</div>
+      <div style="font-size:19px;font-weight:700;">Document Workspace</div>
+      <div style="font-size:13px;color:#6b675f;">The priority screen — source + fields + duplicate resolution in one place, no modal. Shown in 1A styling; adopts the direction you pick.</div>
+    </div>
+
+    <div dir="rtl" lang="he" style="width:1440px;height:860px;background:#f7f6f2;border:1px solid #dcd9d3;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;font-family:'IBM Plex Sans Hebrew',sans-serif;color:#26241f;box-shadow:0 1px 2px rgba(0,0,0,.05),0 18px 44px rgba(0,0,0,.09);">
+      <div style="height:58px;flex:0 0 58px;display:flex;align-items:center;gap:14px;padding:0 20px;background:#fff;border-bottom:1px solid #e7e5e0;">
+        <button style="height:34px;padding:0 12px;border:1px solid #dcd9d3;border-radius:9px;background:#fff;color:#57534b;font-size:13px;font-weight:600;font-family:inherit;display:flex;align-items:center;gap:6px;cursor:pointer;"><svg width="12" height="12" viewBox="0 0 12 12"><polyline points="4,2 8,6 4,10" fill="none" stroke="#57534b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>חזרה לתור</button>
+        <div style="display:flex;flex-direction:column;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="direction:ltr;font-family:'IBM Plex Mono';font-size:13px;font-weight:600;color:#26241f;">electric_2026_07.pdf</span>
+            <span style="font-size:12px;color:#a7a29a;">· ספקים / תשתיות</span>
+          </div>
+          <div style="font-size:11px;color:#a7a29a;margin-top:1px;">מסמך 3 מתוך 11 · דורש טיפול</div>
+        </div>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#9a6a12;background:#fbf1dd;padding:4px 11px;border-radius:20px;"><span style="width:6px;height:6px;border-radius:50%;background:#9a6a12;"></span>לבדיקה</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#57534b;">ביטחון <span style="direction:ltr;font-family:'IBM Plex Mono';color:#9a6a12;">62%</span></span>
+        <div style="margin-inline-start:auto;display:flex;align-items:center;gap:8px;">
+          <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#9a6a12;"><span style="width:7px;height:7px;border-radius:50%;background:#e0a92b;"></span>שינויים לא נשמרו</span>
+          <span style="width:1px;height:24px;background:#e7e5e0;"></span>
+          <button style="width:34px;height:34px;border:1px solid #dcd9d3;border-radius:9px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;"><svg width="13" height="13" viewBox="0 0 12 12"><polyline points="7.5,2 3.5,6 7.5,10" fill="none" stroke="#57534b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button style="height:34px;padding:0 14px;border:1px solid #dcd9d3;border-radius:9px;background:#fff;color:#3a362f;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;">הבא &amp; לא נשמר</button>
+          <button style="width:34px;height:34px;border:1px solid #dcd9d3;border-radius:9px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;"><svg width="13" height="13" viewBox="0 0 12 12"><polyline points="4.5,2 8.5,6 4.5,10" fill="none" stroke="#57534b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+
+      <div style="flex:1;display:flex;min-height:0;">
+        <!-- queue rail (RTL leading / right) -->
+        <div style="width:216px;flex:0 0 216px;background:#fbfaf8;border-inline-start:1px solid #e7e5e0;display:flex;flex-direction:column;">
+          <div style="padding:12px 15px;font-size:11px;font-weight:700;letter-spacing:.05em;color:#93908a;text-transform:uppercase;border-bottom:1px solid #eeece7;">תור הטיפול · 11</div>
+          <div style="flex:1;overflow:auto;padding:6px;">
+            <sc-for list="{{ ws.qlist }}" as="q" hint-placeholder-count="8">
+              <sc-if value="{{ q.current }}">
+                <div style="position:relative;padding:9px 11px;margin:2px 0;border-radius:9px;background:#edeef9;">
+                  <span style="position:absolute;inset-inline-start:0;top:9px;bottom:9px;width:3px;border-radius:3px;background:#4d5bb3;"></span>
+                  <div style="font-size:12.5px;font-weight:600;color:#3a45a0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ q.supplier }}</div>
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:3px;"><span style="width:6px;height:6px;border-radius:50%;background: {{ q.statusColor }};"></span><span style="font-size:11px;color:#6b675f;">{{ q.statusHe }}</span><span style="margin-inline-start:auto;direction:ltr;font-family:'IBM Plex Mono';font-size:10.5px;color: {{ q.confColor }};">{{ q.confPct }}</span></div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ q.notcurrent }}">
+                <div style="padding:9px 11px;margin:2px 0;border-radius:9px;">
+                  <div style="font-size:12.5px;font-weight:500;color:#57534b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ q.supplier }}</div>
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:3px;"><span style="width:6px;height:6px;border-radius:50%;background: {{ q.statusColor }};"></span><span style="font-size:11px;color:#93908a;">{{ q.statusHe }}</span><span style="margin-inline-start:auto;direction:ltr;font-family:'IBM Plex Mono';font-size:10.5px;color: {{ q.confColor }};">{{ q.confPct }}</span></div>
+                </div>
+              </sc-if>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- source PDF viewer -->
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#efece7;border-inline-start:1px solid #e7e5e0;">
+          <div style="height:44px;flex:0 0 44px;display:flex;align-items:center;gap:10px;padding:0 16px;background:#fff;border-bottom:1px solid #e7e5e0;">
+            <span style="font-size:12px;font-weight:600;color:#57534b;">מקור</span>
+            <div style="display:flex;align-items:center;gap:2px;border:1px solid #dcd9d3;border-radius:8px;overflow:hidden;">
+              <button style="width:30px;height:28px;border:none;background:#fff;color:#57534b;font-size:16px;cursor:pointer;">−</button>
+              <span style="direction:ltr;font-family:'IBM Plex Mono';font-size:11px;color:#57534b;padding:0 8px;">100%</span>
+              <button style="width:30px;height:28px;border:none;background:#fff;color:#57534b;font-size:15px;cursor:pointer;border-inline-start:1px solid #eeece7;">+</button>
+            </div>
+            <button style="height:28px;padding:0 10px;border:1px solid #dcd9d3;border-radius:8px;background:#fff;color:#57534b;font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;">התאם לרוחב</button>
+            <span style="direction:ltr;font-family:'IBM Plex Mono';font-size:11px;color:#93908a;margin-inline-start:6px;">1 / 2</span>
+            <button style="margin-inline-start:auto;height:28px;padding:0 11px;border:1px solid #dcd9d3;border-radius:8px;background:#fff;color:#3a362f;font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;">פתח באפליקציה חיצונית</button>
+          </div>
+          <div style="flex:1;overflow:auto;padding:24px;display:flex;justify-content:center;">
+            <div dir="rtl" style="width:520px;min-height:680px;background:#fff;border:1px solid #e0ddd7;box-shadow:0 4px 18px rgba(0,0,0,.09);padding:44px 40px;font-size:12px;color:#3a362f;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #26241f;padding-bottom:14px;">
+                <div><div style="font-size:18px;font-weight:700;">חברת החשמל לישראל בע״מ</div><div style="font-size:11px;color:#93908a;margin-top:3px;">ח.פ. 51-000-0000 · מחלקת גבייה</div></div>
+                <div style="text-align:left;direction:ltr;"><div style="font-size:15px;font-weight:700;">חשבונית מס / קבלה</div><div style="font-family:'IBM Plex Mono';font-size:11px;color:#6b675f;margin-top:3px;">No. 530-4471902</div></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-top:18px;font-size:11.5px;color:#57534b;">
+                <div>לכבוד: לקוח עסקי 44219</div><div style="direction:ltr;font-family:'IBM Plex Mono';">Date: 12/07/2026</div>
+              </div>
+              <div style="margin-top:22px;border:1px solid #eeece7;border-radius:6px;overflow:hidden;">
+                <div style="display:grid;grid-template-columns:1fr 70px 90px;background:#faf9f7;font-size:10.5px;font-weight:700;color:#93908a;"><div style="padding:8px 12px;">תיאור</div><div style="padding:8px;text-align:left;">כמות</div><div style="padding:8px 12px;text-align:left;">סכום</div></div>
+                <div style="display:grid;grid-template-columns:1fr 70px 90px;font-size:11px;border-top:1px solid #f1efea;"><div style="padding:9px 12px;">צריכת חשמל — תקופה 05–07/2026</div><div style="padding:9px 8px;text-align:left;direction:ltr;font-family:'IBM Plex Mono';">1</div><div style="padding:9px 12px;text-align:left;direction:ltr;font-family:'IBM Plex Mono';">4,120.09</div></div>
+                <div style="display:grid;grid-template-columns:1fr 70px 90px;font-size:11px;border-top:1px solid #f1efea;color:#93908a;"><div style="padding:9px 12px;">דמי הספקה קבועים</div><div style="padding:9px 8px;text-align:left;direction:ltr;font-family:'IBM Plex Mono';">1</div><div style="padding:9px 12px;text-align:left;direction:ltr;font-family:'IBM Plex Mono';">—</div></div>
+              </div>
+              <div style="margin-top:16px;display:flex;flex-direction:column;gap:6px;align-items:flex-start;width:200px;font-size:11.5px;direction:ltr;font-family:'IBM Plex Mono';">
+                <div style="display:flex;justify-content:space-between;width:100%;"><span>Subtotal</span><span>4,120.09</span></div>
+                <div style="display:flex;justify-content:space-between;width:100%;"><span>VAT 17%</span><span>700.41</span></div>
+                <div style="display:flex;justify-content:space-between;width:100%;font-weight:700;border-top:1px solid #d8d4ce;padding-top:6px;"><span>Total</span><span>4,820.50</span></div>
+              </div>
+              <div style="margin-top:40px;font-size:10px;color:#b0aaa1;line-height:1.6;">מסמך זה הופק אוטומטית. לפרטים ובירורים ניתן לפנות למחלקת הגבייה. תשלום עד 30 יום ממועד ההפקה.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- fields / edit panel (LTR leading edge on far left) -->
+        <div style="width:428px;flex:0 0 428px;background:#fff;border-inline-start:1px solid #e7e5e0;display:flex;flex-direction:column;">
+          <div style="flex:1;overflow:auto;padding:18px 20px;">
+            <!-- duplicate banner -->
+            <div style="border:1px solid #e3d3f0;background:#faf5fd;border-radius:11px;padding:13px 14px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="width:8px;height:8px;transform:rotate(45deg);background:#7a3fb0;"></span>
+                <span style="font-size:13px;font-weight:700;color:#6a2f9c;">חשד לכפילות אפשרית</span>
+                <button style="margin-inline-start:auto;font-size:11.5px;font-weight:600;color:#7a3fb0;background:none;border:none;cursor:pointer;font-family:inherit;">הסתר</button>
+              </div>
+              <div style="font-size:11.5px;color:#7c6a8c;margin-top:6px;line-height:1.5;">{{ ws.dupReason }}</div>
+              <div style="margin-top:11px;display:grid;grid-template-columns:74px 1fr 1fr;gap:1px;background:#ecdcf5;border:1px solid #ecdcf5;border-radius:8px;overflow:hidden;font-size:11px;">
+                <div style="background:#f6eefb;padding:6px 8px;"></div>
+                <div style="background:#f6eefb;padding:6px 8px;font-weight:700;color:#6a2f9c;">מסמך נוכחי</div>
+                <div style="background:#f6eefb;padding:6px 8px;font-weight:700;color:#57534b;">מסמך קיים</div>
+                <div style="background:#fff;padding:6px 8px;color:#93908a;">ספק</div><div style="background:#fff;padding:6px 8px;">{{ ws.curSupplier }}</div><div style="background:#fff;padding:6px 8px;">{{ ws.exSupplier }}</div>
+                <div style="background:#fff;padding:6px 8px;color:#93908a;">מס׳</div><div style="background:#fff;padding:6px 8px;direction:ltr;font-family:'IBM Plex Mono';">{{ ws.curDoc }}</div><div style="background:#fff;padding:6px 8px;direction:ltr;font-family:'IBM Plex Mono';">{{ ws.exDoc }}</div>
+                <div style="background:#fff;padding:6px 8px;color:#93908a;">תאריך</div><div style="background:#fff;padding:6px 8px;direction:ltr;font-family:'IBM Plex Mono';">{{ ws.curDate }}</div><div style="background:#fff;padding:6px 8px;direction:ltr;font-family:'IBM Plex Mono';">{{ ws.exDate }}</div>
+                <div style="background:#fff;padding:6px 8px;color:#93908a;">סה״כ</div><div style="background:#fff;padding:6px 8px;direction:ltr;font-family:'IBM Plex Mono';font-weight:600;">{{ ws.curAmount }}</div><div style="background:#fff;padding:6px 8px;direction:ltr;font-family:'IBM Plex Mono';">{{ ws.exAmount }}</div>
+              </div>
+              <div style="margin-top:8px;font-size:10.5px;color:#a06fc0;">אישור כפילות ימחק את המסמך הנוכחי ויוציא אותו מסריקות עתידיות.</div>
+              <div style="margin-top:10px;display:flex;gap:8px;">
+                <button style="height:31px;padding:0 12px;border:none;border-radius:8px;background:#7a3fb0;color:#fff;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;">אשר כפילות</button>
+                <button style="height:31px;padding:0 12px;border:1px solid #d8d4ce;border-radius:8px;background:#fff;color:#3a362f;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;">אינה כפילות</button>
+                <button style="height:31px;padding:0 12px;border:none;border-radius:8px;background:transparent;color:#7a3fb0;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;">פתח מסמך קיים</button>
+              </div>
+            </div>
+
+            <!-- fields -->
+            <div style="margin-top:20px;font-size:11px;font-weight:700;letter-spacing:.05em;color:#93908a;text-transform:uppercase;">שדות שחולצו</div>
+
+            <div style="margin-top:12px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;"><label style="font-size:12.5px;font-weight:600;color:#3a362f;">ספק</label><span style="font-size:10.5px;font-weight:600;color:#2b6a63;background:#e2f1ef;padding:1px 7px;border-radius:5px;">תוקן ידנית</span></div>
+              <input value="חברת החשמל לישראל בע״מ" style="width:100%;height:37px;border:1px solid #4d5bb3;border-radius:9px;background:#fff;padding:0 12px;font-size:13.5px;font-family:inherit;color:#26241f;outline:none;box-shadow:0 0 0 3px #edeef9;">
+              <div style="font-size:10.5px;color:#a7a29a;margin-top:4px;">חולץ: <span style="text-decoration:line-through;">חברת החשמל</span> · הספק לא אומת אוטומטית</div>
+            </div>
+
+            <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12.5px;font-weight:600;color:#3a362f;">סוג מסמך</label>
+                <div style="margin-top:5px;height:37px;border:1px solid #dcd9d3;border-radius:9px;background:#faf9f7;padding:0 12px;display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#26241f;">{{ ws.type }}<svg width="11" height="11" viewBox="0 0 12 12"><polyline points="2.5,4.5 6,8 9.5,4.5" fill="none" stroke="#93908a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              </div>
+              <div>
+                <label style="font-size:12.5px;font-weight:600;color:#3a362f;">תאריך מסמך</label>
+                <input value="12/07/2026" style="margin-top:5px;width:100%;height:37px;border:1px solid #dcd9d3;border-radius:9px;background:#fff;padding:0 12px;font-size:13px;direction:ltr;text-align:right;font-family:'IBM Plex Mono';color:#26241f;outline:none;">
+              </div>
+            </div>
+
+            <div style="margin-top:14px;">
+              <label style="font-size:12.5px;font-weight:600;color:#3a362f;">מספר מסמך</label>
+              <input value="530-4471902" style="margin-top:5px;width:100%;height:37px;border:1px solid #dcd9d3;border-radius:9px;background:#fff;padding:0 12px;font-size:13px;direction:ltr;text-align:right;font-family:'IBM Plex Mono';color:#26241f;outline:none;">
+            </div>
+
+            <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12.5px;font-weight:600;color:#3a362f;">סכום לפני מע״מ</label>
+                <input value="₪4,120.09" style="margin-top:5px;width:100%;height:37px;border:1px solid #dcd9d3;border-radius:9px;background:#fff;padding:0 12px;font-size:13px;direction:ltr;text-align:right;font-variant-numeric:tabular-nums;font-family:'IBM Plex Mono';color:#26241f;outline:none;">
+              </div>
+              <div>
+                <label style="font-size:12.5px;font-weight:600;color:#3a362f;">מע״מ</label>
+                <input value="₪700.41" style="margin-top:5px;width:100%;height:37px;border:1px solid #dcd9d3;border-radius:9px;background:#fff;padding:0 12px;font-size:13px;direction:ltr;text-align:right;font-variant-numeric:tabular-nums;font-family:'IBM Plex Mono';color:#26241f;outline:none;">
+              </div>
+            </div>
+
+            <div style="margin-top:14px;">
+              <label style="font-size:12.5px;font-weight:600;color:#3a362f;">סכום כולל (סה״כ)</label>
+              <input value="₪4,820.50" style="margin-top:5px;width:100%;height:39px;border:1.5px solid #e0a92b;border-radius:9px;background:#fffdf7;padding:0 12px;font-size:14px;font-weight:600;direction:ltr;text-align:right;font-variant-numeric:tabular-nums;font-family:'IBM Plex Mono';color:#26241f;outline:none;">
+              <div style="font-size:10.5px;color:#9a6a12;margin-top:4px;display:flex;align-items:center;gap:5px;"><span style="width:5px;height:5px;border-radius:50%;background:#e0a92b;"></span>לא זוהה בביטחון גבוה · 4,120.09 + 700.41 = 4,820.50 ✓</div>
+            </div>
+
+            <div style="margin-top:14px;">
+              <label style="font-size:12.5px;font-weight:600;color:#3a362f;">תיאור</label>
+              <input value="צריכת חשמל — תקופה 05–07/2026" style="margin-top:5px;width:100%;height:37px;border:1px solid #dcd9d3;border-radius:9px;background:#fff;padding:0 12px;font-size:13px;font-family:inherit;color:#26241f;outline:none;">
+            </div>
+
+            <!-- confidence breakdown -->
+            <div style="margin-top:20px;border:1px solid #e7e5e0;border-radius:11px;padding:13px 14px;background:#faf9f7;">
+              <div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-size:12.5px;font-weight:700;color:#3a362f;">ביטחון כולל</span><span style="direction:ltr;font-family:'IBM Plex Mono';font-size:14px;font-weight:600;color:#9a6a12;">0.62</span></div>
+              <div style="margin-top:10px;display:flex;flex-direction:column;gap:7px;">
+                <sc-for list="{{ ws.breakdown }}" as="b" hint-placeholder-count="4">
+                  <div style="display:flex;align-items:center;gap:10px;font-size:11.5px;">
+                    <span style="width:74px;color:#57534b;">{{ b.he }}</span>
+                    <span style="direction:ltr;font-family:'IBM Plex Mono';color: {{ b.color }};min-width:34px;">{{ b.v }}</span>
+                    <span style="width:6px;height:6px;border-radius:50%;background: {{ b.color }};"></span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <!-- warnings -->
+            <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
+              <sc-for list="{{ ws.warnings }}" as="w" hint-placeholder-count="3">
+                <div style="display:flex;align-items:flex-start;gap:9px;padding:10px 12px;border-radius:9px;background: {{ w.bg }};">
+                  <span style="flex:0 0 auto;margin-top:3px;width:6px;height:6px;border-radius:50%;background: {{ w.color }};"></span>
+                  <span style="font-size:12px;font-weight:500;color: {{ w.color }};line-height:1.45;">{{ w.t }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- action bar -->
+          <div style="flex:0 0 auto;border-top:1px solid #e7e5e0;background:#fff;padding:13px 16px;display:flex;align-items:center;gap:9px;">
+            <button style="flex:1;height:40px;border:none;border-radius:10px;background:#2f7a44;color:#fff;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;">אשר מסמך</button>
+            <button style="height:40px;padding:0 15px;border:1px solid #4d5bb3;border-radius:10px;background:#edeef9;color:#3a45a0;font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer;">שמור תיקון</button>
+            <button style="width:40px;height:40px;border:1px solid #dcd9d3;border-radius:10px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="נסה שוב"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.6-3.7" fill="none" stroke="#57534b" stroke-width="1.6" stroke-linecap="round"/><polyline points="13,2.5 13,5 10.5,5" fill="none" stroke="#57534b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button style="width:40px;height:40px;border:1px solid #e6cfcf;border-radius:10px;background:#fff;color:#c0362c;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;" title="סמן כלא רלוונטי"><svg width="15" height="15" viewBox="0 0 14 14"><line x1="3" y1="3" x2="11" y2="11" stroke="#c0362c" stroke-width="1.7" stroke-linecap="round"/><line x1="11" y1="3" x2="3" y2="11" stroke="#c0362c" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  fmtMoney(n){ if(n==null) return '—'; return '₪' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  renderVals(){
+    const S = {
+      new:{he:'חדש',color:'#2f5bd0',bg:'#e8eefb'},
+      processed:{he:'עובד',color:'#4a5568',bg:'#eef0f3'},
+      needs_review:{he:'לבדיקה',color:'#9a6a12',bg:'#fbf1dd'},
+      failed:{he:'נכשל',color:'#c0362c',bg:'#fbe6e3'},
+      skipped:{he:'דולג',color:'#6b7280',bg:'#eef0f2'},
+      approved:{he:'אושר',color:'#2f7a44',bg:'#e5f4ea'},
+      exported:{he:'יוצא',color:'#2b6a63',bg:'#e2f1ef'},
+      confirmed_irrelevant:{he:'לא רלוונטי',color:'#7a7a7a',bg:'#f0efee'}
+    };
+    const TONE = { amber:['#9a6a12','#fbf1dd'], red:['#c0362c','#fbe6e3'], violet:['#7a3fb0','#f2e9fb'], gray:['#6b7280','#eef0f2'], green:['#2f7a44','#e5f4ea'] };
+    const raw = [
+      {id:1, supplier:'חברת החשמל לישראל', file:'electric_2026_07.pdf', folder:'ספקים / תשתיות', docNum:'530-4471902', date:'12/07/2026', amount:4820.50, status:'needs_review', conf:0.62, reasonHe:'ביטחון נמוך', reasonTone:'amber', duplicate:null, corrected:false, selected:true, hovered:false},
+      {id:2, supplier:'Amazon Web Services EMEA', file:'aws_invoice_july.pdf', folder:'Cloud / AWS', docNum:'INV-EU-2026-88214', date:'01/07/2026', amount:1290.00, status:'needs_review', conf:0.71, reasonHe:'הספק לא אומת', reasonTone:'amber', duplicate:null, corrected:false, selected:true, hovered:false},
+      {id:3, supplier:'סופרגז בע״מ', file:'gas_0725.pdf', folder:'ספקים / אנרגיה', docNum:'77120934', date:'05/07/2026', amount:342.00, status:'failed', conf:0, reasonHe:'שגיאת עיבוד — קובץ לא נקרא', reasonTone:'red', duplicate:null, corrected:false, selected:false, hovered:true},
+      {id:4, supplier:'משרד עו״ד כהן, לוי ושות׳ — שירותים משפטיים', file:'legal_retainer_2026Q3_final_v2.pdf', folder:'שירותים / משפטי', docNum:'2026/0442', date:'30/06/2026', amount:11700.00, status:'needs_review', conf:0.55, reasonHe:'שדות חסרים', reasonTone:'amber', duplicate:null, corrected:false, selected:false, hovered:false},
+      {id:5, supplier:'פרטנר תקשורת', file:'partner_mobile_07.pdf', folder:'תקשורת', docNum:'IL-9920371', date:'03/07/2026', amount:289.90, status:'needs_review', conf:0.88, reasonHe:'חשד לכפילות', reasonTone:'violet', duplicate:'exact', corrected:false, selected:false, hovered:false},
+      {id:6, supplier:'Google Cloud', file:'gcp_2026-07.pdf', folder:'Cloud', docNum:'5F2A-0088', date:'01/07/2026', amount:640.25, status:'needs_review', conf:0.69, reasonHe:'חשד לכפילות', reasonTone:'violet', duplicate:'high', corrected:false, selected:false, hovered:false},
+      {id:7, supplier:'דלק מנטה', file:'scan_0713.pdf', folder:'רכב / דלק', docNum:null, date:'13/07/2026', amount:210.00, status:'needs_review', conf:0.48, reasonHe:'שדות חסרים', reasonTone:'red', duplicate:null, corrected:true, selected:false, hovered:false},
+      {id:8, supplier:'אלקטרה מוצרי צריכה', file:'receipt_ac_service.pdf', folder:'תחזוקה', docNum:'8842', date:null, amount:null, status:'skipped', conf:0, reasonHe:'סוג מסמך לא נתמך', reasonTone:'gray', duplicate:null, corrected:false, selected:false, hovered:false}
+    ];
+    const rows = raw.map(r=>{
+      const m = S[r.status]; const rt = TONE[r.reasonTone];
+      const zero = r.conf===0;
+      return { ...r,
+        statusHe:m.he, statusColor:m.color, statusBg:m.bg,
+        reasonColor:rt[0], reasonBg:rt[1], isDup:!!r.duplicate,
+        amountStr:this.fmtMoney(r.amount),
+        docNumStr:r.docNum||'—', dateStr:r.date||'—',
+        confPct: zero?'—':(Math.round(r.conf*100)+'%'), confW: Math.round(r.conf*100),
+        confColor: r.conf>=0.75?'#2f7a44':(r.conf>=0.5?'#9a6a12':'#c0362c'),
+        rowBgA: r.selected?'#f2f3fb':(r.hovered?'#faf9f7':'#ffffff'),
+        rowBgB: r.selected?'#e7f3f2':(r.hovered?'#f5f8fa':'#ffffff'),
+        inactive:true
+      };
+    });
+    const nav = [
+      {he:'סקירה', en:'Overview', count:null, active:false},
+      {he:'נכנסו', en:'Inbox', count:24, active:false},
+      {he:'דורש טיפול', en:'Needs Attention', count:11, active:true},
+      {he:'מוכן', en:'Ready', count:63, active:false},
+      {he:'לא רלוונטי', en:'Irrelevant', count:8, active:false},
+      {he:'היסטוריה', en:'History', count:512, active:false}
+    ].map(n=>({...n, inactive:!n.active}));
+    const statuses = Object.keys(S).map(k=>({...S[k]}));
+    const wsWarn = [
+      {t:'הספק לא אומת — נדחה ללא חלופה', tone:'amber'},
+      {t:'הסכום הכולל לא זוהה בביטחון גבוה', tone:'amber'},
+      {t:'חשד לכפילות אפשרית מול מסמך שכבר יוצא', tone:'violet'}
+    ].map(w=>({t:w.t, color:TONE[w.tone][0], bg:TONE[w.tone][1]}));
+    const wsBreak = [
+      {he:'תאריך', v:'0.25', color:'#2f7a44'},
+      {he:'מספר מסמך', v:'0.25', color:'#2f7a44'},
+      {he:'סכום', v:'0.00', color:'#c0362c'},
+      {he:'אימות ספק', v:'0.12', color:'#9a6a12'}
+    ];
+    const qlist = rows.map(r=>({ supplier:r.supplier, confPct:r.confPct, confColor:r.confColor, statusColor:r.statusColor, statusHe:r.statusHe, current: r.id===1, notcurrent: r.id!==1 }));
+    const ws = {
+      file:'electric_2026_07.pdf', folder:'ספקים / תשתיות',
+      statusHe:'לבדיקה', statusColor:'#9a6a12', statusBg:'#fbf1dd',
+      confPct:'62%', confW:62,
+      idx:'3', total:'11',
+      supplierExtracted:'חברת החשמל', supplierCorrected:'חברת החשמל לישראל בע״מ',
+      type:'חשבונית מס / קבלה', date:'12/07/2026', docNum:'530-4471902',
+      subtotal:'₪4,120.09', vat:'₪700.41', total:'₪4,820.50',
+      desc:'צריכת חשמל — תקופה 05–07/2026',
+      warnings:wsWarn, breakdown:wsBreak, qlist,
+      dupReason:'אותו ספק ותאריך קרוב, סכום דומה, ללא התאמת מספר מסמך',
+      curSupplier:'חברת החשמל לישראל בע״מ', curDoc:'530-4471902', curDate:'12/07/2026', curAmount:'₪4,820.50',
+      exSupplier:'חברת החשמל לישראל בע״מ', exDoc:'530-4470010', exDate:'12/06/2026', exAmount:'₪4,795.20', exFile:'electric_2026_06.pdf'
+    };
+    return { rows, nav, statuses, ws };
+  }
+}
+</script>
+</body>
+</html>

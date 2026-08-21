@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;background:#e6e4df;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#cfcbc4;border-radius:6px;border:2px solid transparent;background-clip:content-box;}
+</style>
+</helmet>
+
+<div dir="rtl" lang="he" style="font-family:'IBM Plex Sans Hebrew',system-ui,sans-serif;color:#26241f;background:#e6e4df;padding:44px 24px 80px;">
+  <div style="max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:22px;">
+
+    <!-- title -->
+    <div style="display:flex;align-items:flex-start;gap:14px;">
+      <div style="width:40px;height:40px;flex:0 0 40px;border-radius:11px;background:#0f8f8a;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:22px;">פ</div>
+      <div>
+        <div style="font-size:24px;font-weight:700;letter-spacing:-.3px;">Panda 2.0 — מפרט עיצוב להטמעה</div>
+        <div style="font-size:13.5px;color:#6b675f;margin-top:4px;line-height:1.55;max-width:760px;">מערכת ויזואלית והתנהגות מוצר עבור המימוש ב‑PySide6/Qt. המסמך מתאר טוקנים, רכיבים, מצבי אינטראקציה ומידות פריסה — לא קוד או ארכיטקטורה. יחידות ב‑px לוגיים.</div>
+      </div>
+    </div>
+
+    <!-- ============ FOUNDATIONS ============ -->
+    <div style="background:#fff;border:1px solid #e7e5e0;border-radius:14px;padding:24px 26px;box-shadow:0 1px 2px rgba(0,0,0,.04);">
+      <div style="display:flex;align-items:baseline;gap:10px;border-bottom:1px solid #f1efea;padding-bottom:14px;">
+        <div style="font-size:18px;font-weight:700;">יסודות</div>
+        <div style="font-family:'IBM Plex Mono';font-size:12px;color:#a7a29a;">Foundations</div>
+      </div>
+
+      <!-- typography -->
+      <div style="margin-top:20px;font-size:13px;font-weight:700;color:#57534b;">טיפוגרפיה <span style="font-family:'IBM Plex Mono';font-size:11px;color:#a7a29a;font-weight:400;">Type</span></div>
+      <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div style="border:1px solid #eeece7;border-radius:10px;padding:13px 15px;">
+          <div style="font-size:12px;color:#93908a;">משפחה ראשית</div>
+          <div style="font-size:18px;font-weight:600;margin-top:4px;">IBM Plex Sans Hebrew</div>
+          <div style="font-size:11.5px;color:#93908a;margin-top:3px;">משקלים 400 · 500 · 600 · 700 — כל הטקסט העברי וה‑UI</div>
+        </div>
+        <div style="border:1px solid #eeece7;border-radius:10px;padding:13px 15px;">
+          <div style="font-size:12px;color:#93908a;">משפחה מספרית</div>
+          <div style="direction:ltr;text-align:right;font-family:'IBM Plex Mono';font-size:18px;font-weight:600;margin-top:4px;">IBM Plex Mono</div>
+          <div style="font-size:11.5px;color:#93908a;margin-top:3px;">400 · 500 · 600 — מספרי מסמך, תאריכים, סכומים, אחוזים, נתיבים</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;border:1px solid #eeece7;border-radius:10px;overflow:hidden;">
+        <div style="display:grid;grid-template-columns:72px 64px 1fr 1.1fr;background:#fbfaf8;border-bottom:1px solid #eeece7;font-size:11px;font-weight:700;color:#93908a;">
+          <div style="padding:8px 13px;">גודל</div><div style="padding:8px 6px;">משקל</div><div style="padding:8px 13px;">שימוש</div><div style="padding:8px 13px;">דוגמה</div>
+        </div>
+        <sc-for list="{{ typeScale }}" as="t" hint-placeholder-count="7">
+          <div style="display:grid;grid-template-columns:72px 64px 1fr 1.1fr;border-bottom:1px solid #f4f2ed;align-items:center;">
+            <div style="padding:9px 13px;direction:ltr;text-align:right;font-family:'IBM Plex Mono';font-size:12px;color:#57534b;">{{ t.size }}</div>
+            <div style="padding:9px 6px;direction:ltr;text-align:right;font-family:'IBM Plex Mono';font-size:12px;color:#93908a;">{{ t.weight }}</div>
+            <div style="padding:9px 13px;font-size:12.5px;color:#6b675f;">{{ t.use }}</div>
+            <div style="padding:9px 13px;color:#26241f;">{{ t.sample }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- color -->
+      <div style="margin-top:24px;font-size:13px;font-weight:700;color:#57534b;">צבע <span style="font-family:'IBM Plex Mono';font-size:11px;color:#a7a29a;font-weight:400;">Color</span></div>
+      <sc-for list="{{ colorGroups }}" as="g" hint-placeholder-count="7">
+        <div style="margin-top:14px;">
+          <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:12px;font-weight:600;color:#3a362f;">{{ g.title }}</span><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#b0aaa1;">{{ g.en }}</span></div>
+          <div style="margin-top:9px;display:grid;grid-template-columns:repeat(6,1fr);gap:12px;">
+            <sc-for list="{{ g.items }}" as="sw" hint-placeholder-count="6">
+              <div>
+                <div style="height:42px;border-radius:9px;background: {{ sw.hex }};border:1px solid rgba(0,0,0,.09);"></div>
+                <div style="font-size:11px;font-weight:600;color:#3a362f;margin-top:6px;">{{ sw.he }}</div>
+                <div style="direction:ltr;text-align:right;font-family:'IBM Plex Mono';font-size:10px;color:#a7a29a;margin-top:1px;">{{ sw.hex }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-for>
+
+      <!-- spacing + radius -->
+      <div style="margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#57534b;">מרווחים <span style="font-family:'IBM Plex Mono';font-size:11px;color:#a7a29a;font-weight:400;">Spacing</span></div>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+            <sc-for list="{{ spacing }}" as="s" hint-placeholder-count="7">
+              <div style="display:flex;align-items:center;gap:11px;">
+                <span style="direction:ltr;font-family:'IBM Plex Mono';font-size:11.5px;color:#57534b;width:34px;text-align:left;">{{ s.v }}</span>
+                <span style="height:12px;border-radius:3px;background:#cfe4e2;width: {{ s.v }}px;flex:0 0 auto;"></span>
+                <span style="font-size:11.5px;color:#93908a;">{{ s.use }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#57534b;">רדיוסים <span style="font-family:'IBM Plex Mono';font-size:11px;color:#a7a29a;font-weight:400;">Radius</span></div>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+            <sc-for list="{{ radii }}" as="r" hint-placeholder-count="7">
+              <div style="display:flex;align-items:center;gap:11px;">
+                <span style="direction:ltr;font-family:'IBM Plex Mono';font-size:11.5px;color:#57534b;width:34px;text-align:left;">{{ r.v }}</span>
+                <span style="width:26px;height:22px;background:#eef4f3;border:1px solid #bcd9d5;border-top-right-radius: {{ r.v }}px;border-bottom-right-radius: {{ r.v }}px;flex:0 0 auto;"></span>
+                <span style="font-size:11.5px;color:#93908a;">{{ r.use }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <!-- elevation -->
+      <div style="margin-top:24px;font-size:13px;font-weight:700;color:#57534b;">הגבהה וצללים <span style="font-family:'IBM Plex Mono';font-size:11px;color:#a7a29a;font-weight:400;">Elevation</span></div>
+      <div style="margin-top:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+        <sc-for list="{{ shadows }}" as="e" hint-placeholder-count="6">
+          <div style="display:flex;flex-direction:column;gap:9px;">
+            <div style="height:56px;border-radius:11px;background:#fff;border:1px solid #f1efea;box-shadow: {{ e.css }};"></div>
+            <div><div style="font-size:11.5px;font-weight:600;color:#3a362f;">{{ e.name }}</div><div style="direction:ltr;text-align:right;font-family:'IBM Plex Mono';font-size:9.5px;color:#a7a29a;margin-top:2px;line-height:1.4;">{{ e.css }}</div></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- ============ COMPONENTS ============ -->
+    <div style="background:#fff;border:1px solid #e7e5e0;border-radius:14px;padding:24px 26px;box-shadow:0 1px 2px rgba(0,0,0,.04);">
+      <div style="display:flex;align-items:baseline;gap:10px;border-bottom:1px solid #f1efea;padding-bottom:14px;">
+        <div style="font-size:18px;font-weight:700;">רכיבים</div>
+        <div style="font-family:'IBM Plex Mono';font-size:12px;color:#a7a29a;">Components</div>
+      </div>
+      <div style="margin-top:6px;">
+        <sc-for list="{{ components }}" as="c" hint-placeholder-count="18">
+          <div style="display:grid;grid-template-columns:210px 1fr;gap:16px;padding:13px 0;border-bottom:1px solid #f4f2ed;align-items:start;">
+            <div><div style="font-size:13px;font-weight:700;color:#26241f;">{{ c.name }}</div><div style="font-family:'IBM Plex Mono';font-size:10.5px;color:#b0aaa1;margin-top:2px;">{{ c.en }}</div></div>
+            <div style="font-size:12.5px;color:#57534b;line-height:1.65;">{{ c.spec }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- ============ INTERACTION STATES ============ -->
+    <div style="background:#fff;border:1px solid #e7e5e0;border-radius:14px;padding:24px 26px;box-shadow:0 1px 2px rgba(0,0,0,.04);">
+      <div style="display:flex;align-items:baseline;gap:10px;border-bottom:1px solid #f1efea;padding-bottom:14px;">
+        <div style="font-size:18px;font-weight:700;">מצבי אינטראקציה</div>
+        <div style="font-family:'IBM Plex Mono';font-size:12px;color:#a7a29a;">Interaction states</div>
+      </div>
+      <div style="margin-top:14px;border:1px solid #eeece7;border-radius:10px;overflow:hidden;">
+        <div style="display:grid;grid-template-columns:170px 1fr;background:#fbfaf8;border-bottom:1px solid #eeece7;font-size:11.5px;font-weight:700;color:#93908a;">
+          <div style="padding:9px 14px;">מצב</div><div style="padding:9px 14px;">טיפול ויזואלי</div>
+        </div>
+        <sc-for list="{{ states }}" as="s" hint-placeholder-count="8">
+          <div style="display:grid;grid-template-columns:170px 1fr;border-bottom:1px solid #f4f2ed;align-items:center;">
+            <div style="padding:11px 14px;"><span style="font-size:12.5px;font-weight:700;color:#26241f;">{{ s.state }}</span><div style="font-family:'IBM Plex Mono';font-size:10px;color:#b0aaa1;margin-top:1px;">{{ s.en }}</div></div>
+            <div style="padding:11px 14px;font-size:12.5px;color:#57534b;line-height:1.6;">{{ s.treat }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- ============ LAYOUT ============ -->
+    <div style="background:#fff;border:1px solid #e7e5e0;border-radius:14px;padding:24px 26px;box-shadow:0 1px 2px rgba(0,0,0,.04);">
+      <div style="display:flex;align-items:baseline;gap:10px;border-bottom:1px solid #f1efea;padding-bottom:14px;">
+        <div style="font-size:18px;font-weight:700;">פריסת שולחן עבודה</div>
+        <div style="font-family:'IBM Plex Mono';font-size:12px;color:#a7a29a;">Desktop layout</div>
+      </div>
+      <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+        <div style="border:1px solid #eeece7;border-radius:11px;overflow:hidden;">
+          <div style="background:#fbfaf8;border-bottom:1px solid #eeece7;padding:11px 15px;display:flex;align-items:baseline;gap:8px;"><span style="font-size:13px;font-weight:700;">מטרה</span><span style="direction:ltr;font-family:'IBM Plex Mono';font-size:12px;color:#0c6f6a;">1440 × 900</span></div>
+          <sc-for list="{{ layoutA }}" as="l" hint-placeholder-count="7">
+            <div style="display:flex;gap:12px;padding:9px 15px;border-bottom:1px solid #f4f2ed;font-size:12px;"><span style="width:150px;flex:0 0 150px;color:#6b675f;">{{ l.k }}</span><span style="direction:ltr;text-align:right;font-family:'IBM Plex Mono';font-size:11.5px;color:#3a362f;">{{ l.v }}</span></div>
+          </sc-for>
+        </div>
+        <div style="border:1px solid #eeece7;border-radius:11px;overflow:hidden;">
+          <div style="background:#fbfaf8;border-bottom:1px solid #eeece7;padding:11px 15px;display:flex;align-items:baseline;gap:8px;"><span style="font-size:13px;font-weight:700;">מינימום</span><span style="direction:ltr;font-family:'IBM Plex Mono';font-size:12px;color:#0c6f6a;">1100 × 680</span></div>
+          <sc-for list="{{ layoutB }}" as="l" hint-placeholder-count="7">
+            <div style="display:flex;gap:12px;padding:9px 15px;border-bottom:1px solid #f4f2ed;font-size:12px;"><span style="width:150px;flex:0 0 150px;color:#6b675f;">{{ l.k }}</span><span style="direction:ltr;text-align:right;font-family:'IBM Plex Mono';font-size:11.5px;color:#3a362f;">{{ l.v }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="margin-top:14px;background:#faf9f7;border:1px solid #eeece7;border-radius:10px;padding:13px 15px;font-size:12px;color:#6b675f;line-height:1.65;">מתחת ל‑1100×680 חלון ה‑Workspace שומר על שלושת האזורים; סרגל התור צר ל‑172px, מציג המסמך גמיש, ופאנל השדות שומר על כל הפעולות. כפתור האישור מושבת כאשר קיימת ולידציה חוסמת (שדה חובה חסר או סכום שאינו תואם).</div>
+    </div>
+
+    <div style="text-align:center;font-size:11.5px;color:#a7a29a;padding-top:6px;">Panda 2.0 · כיוון היברידי מאושר · מפרט עיצוב · אין החלטות ארכיטקטורה</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1088,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  renderVals(){
+    return {
+      typeScale:[
+        {size:'21', weight:'700', use:'כותרת מותג', sample:'Panda 2.0'},
+        {size:'16–17', weight:'700', use:'כותרת מסך · מקטע', sample:'סקירה · דורש טיפול'},
+        {size:'14', weight:'500', use:'ניווט · כפתור', sample:'עיבוד מסמכים'},
+        {size:'13–13.5', weight:'400–600', use:'ערך שדה · גוף', sample:'חברת החשמל לישראל'},
+        {size:'12–12.5', weight:'600', use:'תווית · טקסט עזר', sample:'ספק · תאריך מסמך'},
+        {size:'11–11.5', weight:'600', use:'כותרת עמודה · עזר', sample:'מספר מסמך'},
+        {size:'10.5', weight:'600', use:'תג · מיקרו', sample:'תוקן ידנית'}
+      ],
+      colorGroups:[
+        {title:'משטחים', en:'Surfaces', items:[
+          {he:'רקע קנבס', hex:'#e6e4df'},{he:'רקע אפליקציה', hex:'#f7f6f2'},{he:'משטח / כרטיס', hex:'#ffffff'},
+          {he:'משטח משני', hex:'#faf9f7'},{he:'מציג מסמך', hex:'#efece7'},{he:'מפריד עדין', hex:'#fbfaf8'}
+        ]},
+        {title:'סרגל עבודה כהה', en:'Work rail', items:[
+          {he:'רקע סרגל', hex:'#1f2733'},{he:'פריט פעיל', hex:'#2b3543'},{he:'כרטיס משימה', hex:'#26303d'},
+          {he:'גבול סרגל', hex:'#313c4b'},{he:'טקסט לא פעיל', hex:'#aab2bd'},{he:'אקסנט טיל', hex:'#1fb6ad'}
+        ]},
+        {title:'מותג ואישור', en:'Brand & approval', items:[
+          {he:'טיל ראשי', hex:'#0f8f8a'},{he:'טיל עמוק / קישור', hex:'#0c6f6a'},{he:'גוון טיל', hex:'#e6f4f2'},
+          {he:'ירוק אישור', hex:'#2f7a44'},{he:'גוון ירוק', hex:'#eaf3ec'},{he:'יוצא (טיל עמוק)', hex:'#2b6a63'}
+        ]},
+        {title:'סטטוס', en:'Status', items:[
+          {he:'חדש', hex:'#2f5bd0'},{he:'אזהרה / לבדיקה', hex:'#9a6a12'},{he:'סמן ביטחון נמוך', hex:'#e0a92b'},
+          {he:'שגיאה / נכשל', hex:'#c0362c'},{he:'כפילות', hex:'#7a3fb0'},{he:'עובד', hex:'#4a5568'}
+        ]},
+        {title:'גוונים ומחיקה', en:'Tints & destructive', items:[
+          {he:'גוון ענבר', hex:'#fbf1dd'},{he:'גוון שגיאה', hex:'#fbe6e3'},{he:'גוון כפילות', hex:'#f2e9fb'},
+          {he:'כפתור מחיקה', hex:'#b23b30'},{he:'דולג', hex:'#6b7280'},{he:'גוון דולג', hex:'#eef0f2'}
+        ]},
+        {title:'טקסט', en:'Text', items:[
+          {he:'דיו', hex:'#26241f'},{he:'כותרת', hex:'#3a362f'},{he:'גוף', hex:'#57534b'},
+          {he:'עמום', hex:'#6b675f'},{he:'משני', hex:'#93908a'},{he:'דהוי / placeholder', hex:'#a7a29a'}
+        ]},
+        {title:'גבולות', en:'Borders', items:[
+          {he:'גבול ראשי', hex:'#e7e5e0'},{he:'גבול משני', hex:'#eeece7'},{he:'מפריד שורה', hex:'#f1efea'},
+          {he:'גבול פקד', hex:'#dcd9d3'},{he:'גבול מסגרת', hex:'#cdd3dc'},{he:'גבול תיבה', hex:'#cbc6be'}
+        ]}
+      ],
+      spacing:[
+        {v:'4', use:'בסיס · צמידות'},{v:'8', use:'בין אלמנטים צמודים'},{v:'12', use:'מרווח סטנדרטי'},
+        {v:'14', use:'בין שדות טופס'},{v:'16', use:'ריפוד כרטיס · בין מקטעים'},{v:'20', use:'ריפוד פאנל'},{v:'24', use:'שולי תוכן · מקטע'}
+      ],
+      radii:[
+        {v:'4', use:'תיבת סימון · תג'},{v:'7–8', use:'צ׳יפ · כפתור קטן'},{v:'9', use:'כפתור · שדה קלט'},
+        {v:'11', use:'כרטיס · פאנל'},{v:'14', use:'כרטיס גדול · דיאלוג'},{v:'16', use:'מודאל'},{v:'20', use:'pill · תג ספירה'}
+      ],
+      shadows:[
+        {name:'כרטיס', css:'0 1px 2px rgba(0,0,0,.04)'},
+        {name:'מסגרת חלון', css:'0 1px 2px rgba(0,0,0,.05), 0 22px 54px rgba(0,0,0,.12)'},
+        {name:'דיאלוג אישור', css:'0 14px 40px rgba(0,0,0,.16)'},
+        {name:'flyout משימות', css:'0 18px 48px rgba(0,0,0,.22)'},
+        {name:'מודאל כפילות', css:'0 24px 70px rgba(0,0,0,.3)'},
+        {name:'טבעת פוקוס', css:'0 0 0 3px #e6f4f2'}
+      ],
+      components:[
+        {name:'סרגל ניווט', en:'Sidebar', spec:'רוחב 230px, רקע כהה #1f2733. פריט 40px גובה, רדיוס 9; פעיל = רקע #2b3543 + פס טיל 3px בתחילת הפריט + תג ספירה. לא פעיל = טקסט #aab2bd. כרטיס משימת רקע קבוע בתחתית עם התקדמות וקישור «משימות».'},
+        {name:'כפתורים', en:'Buttons', spec:'ראשי (טיל #0f8f8a) גובה 34–35, רדיוס 9. אישור (ירוק #2f7a44) גובה 40–44, רדיוס 10–11 — דומיננטי ורחב. משני = לבן + גבול #dcd9d3. הרסני = מילוי #b23b30 / #c0362c. מושבת = #c9cdc9, cursor not-allowed.'},
+        {name:'כפתורי אייקון', en:'Icon buttons', spec:'ריבוע 30–42px, רדיוס 8–11, לבן + גבול #dcd9d3, אייקון SVG בקו #57534b (או #c0362c לפעולה הרסנית). משמשים לניווט קודם/הבא, זום, נסה שוב.'},
+        {name:'שדות קלט', en:'Inputs', spec:'גובה 35–39, רדיוס 8–9, גבול #dcd9d3, רקע לבן (או #faf9f7 לקריאה בלבד). מספרים/תאריכים ב‑IBM Plex Mono, direction:ltr, יישור לימין. פוקוס = גבול טיל + טבעת 3px #e6f4f2.'},
+        {name:'חיפוש', en:'Search', spec:'גובה 36, רדיוס 9, רקע #faf9f7, אייקון זכוכית מגדלת בקצה הפתיחה (RTL), placeholder #a7a29a. נמצא בכותרת תצוגות הטבלה.'},
+        {name:'טבלאות', en:'Tables', spec:'פריסת grid בעמודות קבועות. כותרת 36–38px רקע #fbfaf8, טקסט #93908a. שורה 52–56px מינ׳, מפריד #f1efea. ריחוף = רקע #faf9f7. עמודות: תיבה · מסמך · מספר · תאריך · סכום · סטטוס · ביטחון · מטא.'},
+        {name:'מסך «מוכן» — טרמינולוגיה', en:'Ready terminology', spec:'יעד ניווט יחיד בשם «מוכן». בתוכו: «מוכן לאישור» = processed פנימי, «מוכן לייצוא» = approved פנימי. exported שייך ל«היסטוריה». התוויות עקביות בכרטיסים, בטבלאות, במסננים וב‑Workspace; אין ערבוב עם השמות הפנימיים ב‑UI.'},
+        {name:'אישור באצווה', en:'Batch approval', spec:'מושבת כאשר מסמך אחד או יותר הזכאי לאישור («מוכן לאישור») נכשל בוולידציה חוסמת — לעולם לא אישור חלקי שקט של בחירה מעורבת. הבר מציג את מספר המסמכים החוסמים + «הצג חוסמים» לסינון הבחירה אליהם. מסמכים שכבר «מוכן לייצוא» אינם נספרים כחוסמים, וייצוא הרשומות המאושרות נותר זמין.'},
+        {name:'מצבי שורה', en:'Row states', spec:'רגיל לבן · ריחוף #faf9f7 · נבחר = פס טיל 3px בתחילת השורה + רקע #eff6f4 + תיבה מסומנת. שורה נכשלה/חסרה מסומנת דרך עמודת הסטטוס והמטא, לא ברקע.'},
+        {name:'תיבות סימון', en:'Checkboxes', spec:'16px, רדיוס 4, גבול #cbc6be. מסומן = מילוי טיל #0f8f8a + וי לבן. מצב חלקי (כותרת) = קו אופקי לבן.'},
+        {name:'תגי סטטוס', en:'Status badges', spec:'נקודה 7px בצבע המצב + תווית 12px באותו צבע; או צ׳יפ עם רקע גוון (רדיוס 6). צבעים לפי מיפוי הסטטוס. שימוש מאופק — לא יותר מתג אחד לשורה.'},
+        {name:'טיפול בביטחון', en:'Confidence', spec:'בר 5px + אחוז ב‑mono. סף צבע: ≥75% ירוק #2f7a44 · ≥50% ענבר #9a6a12 · <50% אדום #c0362c. שדה בודד בביטחון נמוך מסומן בנקודת ענבר 6px ליד התווית.'},
+        {name:'התראות', en:'Alerts', spec:'פאנל עם רקע גוון + גבול 1px + נקודה מובילה. רצועת כפילות = גוון סגול #f7f4fa נמוך־כרומה. הערת השלכה הרסנית = גוון אדום #fbf7f6 + טקסט #8a4a44.'},
+        {name:'מצב ריק', en:'Empty state', spec:'אריח אייקון 52px רקע #f2f0eb + כותרת + משפט משנה #93908a + כפתור ראשי (סריקת Drive). ממורכז אנכית.'},
+        {name:'מצב טעינה', en:'Loading', spec:'שלד (skeleton) — פסי #eeece7 / #f2f0eb מתחלפים בגובה 11px, רדיוס 5. לפעולות ארוכות: טבעת מסתובבת בטיל + בר התקדמות.'},
+        {name:'דיאלוג אישור', en:'Confirmation', spec:'רוחב 420–430, רדיוס 14. אייקון + כותרת + גוף + הערת השלכה מודגשת. פעולות: הרסני (אדום) + ביטול. שימוש לפעולות קבועות (סימון כלא רלוונטי, אישור כפילות).'},
+        {name:'מרכז משימות', en:'Task dock', spec:'flyout בפינה תחתונה בצד הפתיחה, רוחב 360, רדיוס 14. שורות משימה עם נקודת מצב, התקדמות ונתיב קובץ. נגיש מקישור «משימות» בסרגל.'},
+        {name:'Document Workspace', en:'Workspace', spec:'שלושה אזורים: תור טיפול (172–212) · מציג מקור (גמיש) · פאנל שדות (360–420). כותרת עם ניווט קודם/הבא ומחוון שינויים לא נשמרו. פעולת אישור דומיננטית בתחתית פאנל השדות.'},
+        {name:'בקרות PDF', en:'PDF controls', spec:'קבוצת זום −/אחוז/+ (מקוטעת), «התאם לרוחב», מונה עמוד x/y, «פתח באפליקציה חיצונית» כ‑fallback. שוכנות בכותרת מציג המקור.'}
+      ],
+      states:[
+        {state:'רגיל', en:'Normal', treat:'משטח לבן, גבול #e7e5e0, טקסט #26241f. ללא צל בפריטי תוכן; צל כרטיס עדין בלבד.'},
+        {state:'ריחוף', en:'Hover', treat:'שורות טבלה → רקע #faf9f7. כפתורים → הכהיה קלה של המילוי. פריטי סרגל לא פעילים → הבהרת טקסט.'},
+        {state:'פוקוס', en:'Focus', treat:'שדות קלט → גבול טיל #0f8f8a + טבעת 3px #e6f4f2. ללא outline דיפולטי של הדפדפן.'},
+        {state:'נבחר', en:'Selected', treat:'שורה → פס טיל 3px + רקע #eff6f4 + תיבה מסומנת. פריט תור נוכחי → כרטיס לבן + גבול טיל #d3ebe9 + פס טיל.'},
+        {state:'מושבת', en:'Disabled', treat:'כפתור → מילוי #c9cdc9 / #d9d5cf, cursor:not-allowed, ללא צל. תמיד מלווה בסיבה: אישור בודד = «השלם שדות חובה כדי לאשר»; אישור באצווה = מספר המסמכים החוסמים + «הצג חוסמים».'},
+        {state:'הרסני', en:'Destructive', treat:'אדום #b23b30 / #c0362c, תמיד עם הערת השלכה מפורשת וקבועה. דורש דיאלוג אישור לפני ביצוע.'},
+        {state:'טעינה', en:'Loading', treat:'skeleton לתוכן · טבעת טיל לפעולה · בר התקדמות עם מונה ב‑mono לתהליכי רקע ארוכים.'},
+        {state:'פוקוס מקלדת', en:'Keyboard', treat:'טבעת טיל נראית זהה לפוקוס. בתור ה‑Workspace: ↑↓ ניווט בין מסמכים, ↵ אישור המסמך הנוכחי.'}
+      ],
+      layoutA:[
+        {k:'סרגל ניווט', v:'230px קבוע'},
+        {k:'אזור תוכן', v:'גמיש (min-width:0)'},
+        {k:'כותרת מסך', v:'58px'},
+        {k:'סרגל סינון / אצווה', v:'44 / 45px'},
+        {k:'Workspace — תור', v:'212px'},
+        {k:'Workspace — מקור', v:'גמיש'},
+        {k:'Workspace — שדות', v:'420px'},
+        {k:'מודאל כפילות', v:'800px רוחב'}
+      ],
+      layoutB:[
+        {k:'סרגל ניווט', v:'מוסתר / מוקטן'},
+        {k:'כותרת חלון', v:'52px'},
+        {k:'Workspace — תור', v:'172px'},
+        {k:'Workspace — מקור', v:'גמיש (מסמך ~400px)'},
+        {k:'Workspace — שדות', v:'360px'},
+        {k:'גובה שדה', v:'35px (מ‑37–39)'},
+        {k:'פעולת אישור', v:'נשמרת · מושבתת בחסימה'},
+        {k:'פתיחה חיצונית', v:'נשמרת כ‑fallback'}
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
