@@ -26,13 +26,16 @@ def isolated_data_paths(tmp_path, monkeypatch):
     touch real data files and do not interfere with each other.
     """
     import app.config as cfg
+    import app.services.correction_map_service as cms
     import app.services.learning_service as ls
     import app.parsers.supplier_validator as sv
 
     monkeypatch.setattr(cfg, "CORRECTIONS_LOG_JSON", tmp_path / "corrections_log.json")
+    monkeypatch.setattr(cfg, "CORRECTION_MAP_JSON",  tmp_path / "correction_map.json")
     monkeypatch.setattr(cfg, "LEARNED_RULES_JSON",   tmp_path / "learned_rules.json")
     monkeypatch.setattr(cfg, "SUPPLIER_RULES_JSON",  tmp_path / "supplier_rules.json")
 
+    monkeypatch.setattr(cms, "CORRECTION_MAP_JSON", tmp_path / "correction_map.json")
     monkeypatch.setattr(ls, "CORRECTIONS_LOG_JSON", tmp_path / "corrections_log.json")
     monkeypatch.setattr(ls, "LEARNED_RULES_JSON",   tmp_path / "learned_rules.json")
 
