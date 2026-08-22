@@ -18,6 +18,20 @@ from app.models.document import Document
 
 logger = logging.getLogger(__name__)
 
+CURRENT_STORE_VERSION = 2
+
+
+class DocumentStoreLoadError(RuntimeError):
+    """Raised when an existing document store cannot be loaded safely."""
+
+    def __init__(self, path: Path, category: str, detail: str) -> None:
+        self.path = path
+        self.category = category
+        super().__init__(
+            f"Document store at '{path}' could not be loaded safely "
+            f"({category}): {detail}"
+        )
+
 
 class DocumentStore:
     """Thread-safe, JSON-backed document store."""
@@ -80,28 +94,110 @@ class DocumentStore:
     # ── Persistence ────────────────────────────────────────────────────────────
 
     def _load(self) -> None:
-        if not self._path.exists():
+        try:
+            self._path.stat()
+        except FileNotFoundError:
             logger.info("No document store found at %s — starting fresh.", self._path)
             return
+        except OSError as exc:
+            error = DocumentStoreLoadError(
+                self._path,
+                "unreadable",
+                f"the file could not be accessed ({type(exc).__name__})",
+            )
+            logger.error("%s", error)
+            raise error from exc
+
         try:
-            with open(self._path, "r", encoding="utf-8") as fh:
+            with self._path.open("r", encoding="utf-8") as fh:
                 raw = json.load(fh)
-            for entry in raw.get("documents", []):
-                try:
-                    doc = Document.from_dict(entry)
-                    self._docs[doc.drive_file_id] = doc
-                except Exception as exc:
-                    logger.warning("Skipping corrupt entry id=%s: %s", entry.get("id"), exc)
-            logger.info("Loaded %d documents from store.", len(self._docs))
-        except Exception as exc:
-            logger.error("Failed to load document store: %s", exc)
+        except json.JSONDecodeError as exc:
+            error = DocumentStoreLoadError(
+                self._path,
+                "malformed_json",
+                f"malformed JSON at line {exc.lineno}, column {exc.colno}",
+            )
+            logger.error("%s", error)
+            raise error from exc
+        except (OSError, UnicodeError) as exc:
+            error = DocumentStoreLoadError(
+                self._path,
+                "unreadable",
+                f"the file could not be read ({type(exc).__name__})",
+            )
+            logger.error("%s", error)
+            raise error from exc
+
+        if not isinstance(raw, dict):
+            raise DocumentStoreLoadError(
+                self._path,
+                "invalid_shape",
+                "the top-level JSON value must be an object",
+            )
+
+        version = raw.get("version")
+        if type(version) is not int:
+            raise DocumentStoreLoadError(
+                self._path,
+                "invalid_version",
+                f"schema version must be the integer {CURRENT_STORE_VERSION}",
+            )
+        if version != CURRENT_STORE_VERSION:
+            raise DocumentStoreLoadError(
+                self._path,
+                "unsupported_version",
+                f"schema version {version} is unsupported; "
+                f"supported version is {CURRENT_STORE_VERSION}",
+            )
+
+        entries = raw.get("documents")
+        if not isinstance(entries, list):
+            raise DocumentStoreLoadError(
+                self._path,
+                "invalid_shape",
+                "the 'documents' field must be an array",
+            )
+
+        loaded: dict[str, Document] = {}
+        for index, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                raise DocumentStoreLoadError(
+                    self._path,
+                    "invalid_document",
+                    f"document entry at index {index} must be an object",
+                )
+            try:
+                doc = Document.from_dict(entry)
+            except (KeyError, TypeError, ValueError) as exc:
+                raise DocumentStoreLoadError(
+                    self._path,
+                    "invalid_document",
+                    f"document entry at index {index} is invalid",
+                ) from exc
+
+            if not isinstance(doc.drive_file_id, str) or not doc.drive_file_id.strip():
+                raise DocumentStoreLoadError(
+                    self._path,
+                    "invalid_document",
+                    f"document entry at index {index} has no valid Drive file ID",
+                )
+            if doc.drive_file_id in loaded:
+                raise DocumentStoreLoadError(
+                    self._path,
+                    "invalid_document",
+                    f"document entry at index {index} duplicates a Drive file ID",
+                )
+            loaded[doc.drive_file_id] = doc
+
+        self._docs = loaded
+        logger.info("Loaded %d documents from store.", len(self._docs))
 
     def _save_locked(self) -> None:
         """Atomic write. Caller must hold self._lock."""
         self._path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self._path.with_suffix(".tmp")
         payload = {
-            "version": 2,
+            "version": CURRENT_STORE_VERSION,
             "documents": [d.to_dict() for d in self._docs.values()],
         }
         try:

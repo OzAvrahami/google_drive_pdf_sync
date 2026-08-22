@@ -7,10 +7,10 @@ Usage:
 import logging
 import sys
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from app.config import ensure_dirs
-from app.services.document_store import DocumentStore
+from app.services.document_store import DocumentStore, DocumentStoreLoadError
 from app.ui.main_window import MainWindow
 
 # ── Logging ────────────────────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def main() -> None:
+def main() -> int:
     ensure_dirs()
 
     app = QApplication(sys.argv)
@@ -37,12 +37,25 @@ def main() -> None:
     # Apply a clean stylesheet
     app.setStyleSheet(_STYLESHEET)
 
-    store  = DocumentStore()
+    try:
+        store = DocumentStore()
+    except DocumentStoreLoadError as exc:
+        logger.critical("Panda refused to start with an unsafe document store: %s", exc)
+        QMessageBox.critical(
+            None,
+            "Panda — שגיאת אחסון",
+            "לא ניתן לטעון בבטחה את מאגר המסמכים המקומי.\n\n"
+            "Panda לא תמשיך כדי למנוע סיכון לאובדן נתונים. "
+            "המאגר לא שונה.\n\n"
+            f"פרטים: {exc}",
+        )
+        return 1
+
     window = MainWindow(store)
     window.show()
 
     logger.info("Application started.")
-    sys.exit(app.exec())
+    return app.exec()
 
 
 _STYLESHEET = """
@@ -121,4 +134,4 @@ QStatusBar {
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
