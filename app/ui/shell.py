@@ -19,6 +19,9 @@ from PySide6.QtWidgets import (
 )
 
 from app.application.task_manager import TaskManager, TaskType
+from app.application.approval_service import ApprovalService
+from app.application.document_review_service import DocumentReviewService
+from app.application.workspace_approval_service import WorkspaceApprovalService
 from app.models.document import Document
 from app.ui.components import ButtonVariant, NavigationRail, PandaButton
 from app.ui.models.document_table_model import DocumentTableModel
@@ -55,6 +58,9 @@ class PandaMainWindow(QMainWindow):
         task_manager: TaskManager | None = None,
         operational_controller: OperationalTaskController | None = None,
         operational_enabled: bool | None = None,
+        document_review_service: DocumentReviewService | None = None,
+        approval_service: ApprovalService | None = None,
+        workspace_approval_service: WorkspaceApprovalService | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -74,6 +80,28 @@ class PandaMainWindow(QMainWindow):
         if self.operational_controller is None and operational_enabled:
             self.operational_controller = OperationalTaskController(
                 document_source, self.task_manager, parent=self
+            )
+        repository_capable = all(
+            hasattr(document_source, attribute)
+            for attribute in ("get_by_drive_id", "upsert")
+        )
+        self.document_review_service = document_review_service
+        if self.document_review_service is None and repository_capable:
+            self.document_review_service = DocumentReviewService(document_source)
+        self.approval_service = approval_service
+        if self.approval_service is None and repository_capable:
+            self.approval_service = ApprovalService(document_source)
+        self.workspace_approval_service = workspace_approval_service
+        if (
+            self.workspace_approval_service is None
+            and repository_capable
+            and self.document_review_service is not None
+            and self.approval_service is not None
+        ):
+            self.workspace_approval_service = WorkspaceApprovalService(
+                document_source,
+                self.document_review_service,
+                self.approval_service,
             )
         self.task_model = TaskListModel(self.task_manager, self)
         self.document_model = DocumentTableModel(parent=self)
@@ -187,8 +215,18 @@ class PandaMainWindow(QMainWindow):
 
         self.mode_stack = QStackedWidget()
         self.mode_stack.addWidget(self.route_mode)
-        self.workspace = WorkspaceView(self._document_by_id)
+        self.workspace = WorkspaceView(
+            self._document_by_id,
+            review_service=self.document_review_service,
+            approval_executor=(
+                self.workspace_approval_service.approve_draft
+                if self.workspace_approval_service is not None
+                else None
+            ),
+        )
         self.workspace.backRequested.connect(self._return_from_workspace)
+        self.workspace.documentSaved.connect(self.refresh_document)
+        self.workspace.documentApproved.connect(self.refresh_document)
         self.mode_stack.addWidget(self.workspace)
         content_layout.addWidget(self.mode_stack, 1)
 
@@ -198,8 +236,14 @@ class PandaMainWindow(QMainWindow):
         self._position_task_center()
         self._refresh_action_availability()
 
-    def navigate(self, route: AppRoute | str) -> None:
+    def navigate(self, route: AppRoute | str) -> bool:
         destination = AppRoute(route)
+        if (
+            hasattr(self, "workspace")
+            and self.workspace_active
+            and not self.workspace.confirm_discard_changes("route")
+        ):
+            return False
         definition = route_definition(destination)
         changed = destination is not self._current_route
         self._current_route = destination
@@ -220,6 +264,7 @@ class PandaMainWindow(QMainWindow):
             )
         if changed:
             self.routeChanged.emit(destination.value)
+        return True
 
     def open_workspace(
         self,
@@ -282,7 +327,7 @@ class PandaMainWindow(QMainWindow):
         self._documents = tuple(self._documents_by_id.values())
         self._restore_queue_selections(selections)
         self._refresh_shared_summaries()
-        self._reconcile_workspace()
+        self._reconcile_workspace(changed_document_id=document_id)
 
     def _document_by_id(self, document_id: str) -> Document | None:
         return self._documents_by_id.get(document_id)
@@ -294,7 +339,7 @@ class PandaMainWindow(QMainWindow):
             view.restore_selected_document_ids(self._workspace_origin_selection)
             view.focus_document(document_id, preserve_selection=True)
 
-    def _reconcile_workspace(self) -> None:
+    def _reconcile_workspace(self, *, changed_document_id: str | None = None) -> None:
         if not hasattr(self, "workspace") or not self.workspace_active:
             return
         try:
@@ -306,6 +351,7 @@ class PandaMainWindow(QMainWindow):
             self.workspace.reconcile_queue(
                 view.ordered_visible_document_ids,
                 self._documents_by_id,
+                changed_document_id=changed_document_id,
             )
 
     def _refresh_shared_summaries(self) -> None:
@@ -410,6 +456,13 @@ class PandaMainWindow(QMainWindow):
                 "לא ניתן לסגור את Panda בזמן שמשימת רקע פועלת. "
                 "המתן לסיום המשימה או בטל אותה דרך מרכז המשימות אם הביטול נתמך.",
             )
+            event.ignore()
+            return
+        if (
+            hasattr(self, "workspace")
+            and self.workspace_active
+            and not self.workspace.confirm_discard_changes("close")
+        ):
             event.ignore()
             return
         if self.operational_controller is not None:

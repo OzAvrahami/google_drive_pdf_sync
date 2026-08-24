@@ -1,4 +1,4 @@
-"""Offline native visual harness for the read-only Panda 2.0 Workspace.
+"""Offline native visual harness for the Panda 2.0 Workspace.
 
 Only synthetic documents, a generated PDF, and generated extracted text are used.
 No DocumentStore, Drive, credentials, environment file, or operational path is read.
@@ -10,6 +10,7 @@ import argparse
 import os
 import sys
 import tempfile
+from copy import deepcopy
 from pathlib import Path
 
 if __package__ in (None, ""):
@@ -21,6 +22,9 @@ from PySide6.QtCore import QCoreApplication, QEvent, QTimer, QRectF
 from PySide6.QtGui import QPainter, QPdfWriter
 from PySide6.QtWidgets import QApplication
 
+from app.application.approval_service import ApprovalService
+from app.application.document_review_service import DocumentReviewService
+from app.application.workspace_approval_service import WorkspaceApprovalService
 from app.models.document import Document
 from app.ui.routes import AppRoute
 from app.ui.shell import PandaMainWindow
@@ -39,8 +43,23 @@ def _args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--scenario",
-        choices=("normal", "missing", "duplicate", "failed", "corrected"),
+        choices=(
+            "normal",
+            "dirty",
+            "invalid-number",
+            "invalid-date",
+            "clear",
+            "missing",
+            "duplicate",
+            "failed",
+            "corrected",
+            "learning-warning",
+            "approved",
+        ),
         default="normal",
+    )
+    parser.add_argument(
+        "--auto-action", choices=("none", "save", "approve"), default="none"
     )
     parser.add_argument("--size", type=_window_size, default=(1440, 900))
     parser.add_argument("--snapshot", type=Path)
@@ -140,24 +159,100 @@ class _SyntheticSource:
                 local_path=str(root / "not-present-failed.pdf"),
                 raw_text_path=str(raw),
             ),
+            Document(
+                drive_file_id="approved",
+                file_name="approved_read_only.pdf",
+                folder_path="Drive / approved",
+                status="approved",
+                confidence=0.94,
+                supplier_name="ספק מאושר לדוגמה",
+                invoice_number="APPROVED-1",
+                invoice_date="24/08/2026",
+                total=1170,
+                local_path=str(pdf),
+                raw_text_path=str(raw),
+            ),
         ]
 
     def all(self) -> list[Document]:
-        return list(self.documents)
+        return [deepcopy(document) for document in self.documents]
+
+    def get_by_drive_id(self, document_id: str) -> Document | None:
+        document = next(
+            (item for item in self.documents if item.drive_file_id == document_id), None
+        )
+        return deepcopy(document) if document is not None else None
+
+    def upsert(self, document: Document) -> None:
+        stored = deepcopy(document)
+        stored.touch()
+        for index, current in enumerate(self.documents):
+            if current.drive_file_id == stored.drive_file_id:
+                self.documents[index] = stored
+                return
+        self.documents.append(stored)
+
+    def upsert_many(self, documents) -> None:
+        for document in documents:
+            self.upsert(document)
 
 
 def main() -> int:
     args = _args()
     app = QApplication.instance() or QApplication(sys.argv)
-    app.setApplicationName("Panda 2.0 Read-only Workspace Gallery")
+    app.setApplicationName("Panda 2.0 Workspace Editing Gallery")
     register_bundled_fonts()
     temporary = tempfile.TemporaryDirectory(prefix="panda2-workspace-")
     source = _SyntheticSource(Path(temporary.name))
-    window = PandaMainWindow(source, operational_enabled=False)
+    def learning_recorder(**_kwargs):
+        if args.scenario == "learning-warning":
+            raise RuntimeError("synthetic learning warning")
+        return None
+
+    review_service = DocumentReviewService(
+        source, learning_recorder=learning_recorder
+    )
+    approval_service = ApprovalService(source)
+    combined_service = WorkspaceApprovalService(
+        source, review_service, approval_service
+    )
+    window = PandaMainWindow(
+        source,
+        operational_enabled=False,
+        document_review_service=review_service,
+        approval_service=approval_service,
+        workspace_approval_service=combined_service,
+    )
     window.resize(*args.size)
     ordered = tuple(document.drive_file_id for document in source.documents)
-    window.open_workspace(args.scenario, ordered, AppRoute.ATTENTION.value)
+    scenario_document = {
+        "corrected": "corrected",
+        "missing": "missing",
+        "duplicate": "duplicate",
+        "failed": "failed",
+        "approved": "approved",
+    }.get(args.scenario, "normal")
+    window.open_workspace(scenario_document, ordered, AppRoute.ATTENTION.value)
+    editor = window.workspace.review_panel.field_editors
+    if args.scenario == "dirty":
+        editor["description"].editor.setText("שינוי סינתטי שלא נשמר")
+    elif args.scenario == "invalid-number":
+        editor["total"].editor.setText("סכום לא תקין")
+    elif args.scenario == "invalid-date":
+        editor["invoice_date"].editor.setText("2026-08-24")
+    elif args.scenario == "clear":
+        editor["supplier_name"].editor.clear()
+    elif args.scenario == "learning-warning":
+        editor["supplier_name"].editor.setText("ספק סינתטי מתוקן")
     window.show()
+
+    if args.auto_action != "none":
+        action = (
+            window.workspace.save_current_draft
+            if args.auto_action == "save"
+            else window.workspace.approve_current_draft
+        )
+        QTimer.singleShot(250, action)
 
     if args.snapshot:
         def save_and_exit() -> None:
@@ -168,6 +263,7 @@ def main() -> int:
         QTimer.singleShot(650, save_and_exit)
     result = app.exec()
     window.workspace.source_preview.release_source()
+    window.workspace.set_discard_confirmation(lambda _reason: True)
     window.close()
     window.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
