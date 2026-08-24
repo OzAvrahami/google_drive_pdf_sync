@@ -16,6 +16,7 @@ from app.ui.theme.typography import TypographyRole, apply_typography
 class ButtonVariant(str, Enum):
     PRIMARY = "primary"
     APPROVAL = "approval"
+    DARK = "dark"
     SECONDARY = "secondary"
     GHOST = "ghost"
     DESTRUCTIVE = "destructive"
@@ -62,7 +63,11 @@ class PandaButton(QPushButton):
         self._icon_name = icon_name
         if self._variant is ButtonVariant.DESTRUCTIVE:
             tone = IconTone.ON_DARK
-        elif self._variant in {ButtonVariant.PRIMARY, ButtonVariant.APPROVAL}:
+        elif self._variant in {
+            ButtonVariant.PRIMARY,
+            ButtonVariant.APPROVAL,
+            ButtonVariant.DARK,
+        }:
             tone = IconTone.ON_DARK
         else:
             tone = IconTone.DEFAULT

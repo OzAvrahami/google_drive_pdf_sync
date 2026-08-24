@@ -65,7 +65,7 @@ TYPOGRAPHY: dict[TypographyRole, TypographySpec] = {
     TypographyRole.TABLE: TypographySpec(13, QFont.Weight.Medium),
     TypographyRole.LABEL: TypographySpec(12, QFont.Weight.DemiBold),
     TypographyRole.HELPER: TypographySpec(11, QFont.Weight.Normal),
-    TypographyRole.METRIC: TypographySpec(21, QFont.Weight.DemiBold),
+    TypographyRole.METRIC: TypographySpec(36, QFont.Weight.DemiBold),
     TypographyRole.BADGE: TypographySpec(11, QFont.Weight.DemiBold),
     TypographyRole.TECHNICAL: TypographySpec(12, QFont.Weight.Normal, True),
 }

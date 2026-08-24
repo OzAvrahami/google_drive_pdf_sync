@@ -62,6 +62,15 @@ QPushButton[pandaComponent="button"][variant="approval"]:hover {{
 QPushButton[pandaComponent="button"][variant="approval"]:pressed {{
     background: {c.approval_pressed}; border-color: {c.approval_pressed};
 }}
+QPushButton[pandaComponent="button"][variant="dark"] {{
+    background: {c.text_primary}; color: {c.text_on_color}; border-color: {c.text_primary};
+}}
+QPushButton[pandaComponent="button"][variant="dark"]:hover {{
+    background: {c.navigation_active}; border-color: {c.navigation_active};
+}}
+QPushButton[pandaComponent="button"][variant="dark"]:pressed {{
+    background: {c.navigation_rail}; border-color: {c.navigation_rail};
+}}
 QPushButton[pandaComponent="button"][variant="ghost"] {{
     background: transparent; border-color: transparent; color: {c.text_body};
 }}
@@ -79,6 +88,7 @@ QPushButton[pandaComponent="button"][variant="destructive"]:pressed {{
 }}
 QPushButton[pandaComponent="button"][variant="primary"]:focus,
 QPushButton[pandaComponent="button"][variant="approval"]:focus,
+QPushButton[pandaComponent="button"][variant="dark"]:focus,
 QPushButton[pandaComponent="button"][variant="destructive"]:focus {{
     border: {b.focus}px solid {c.text_on_color};
 }}
@@ -169,6 +179,104 @@ QFrame[pandaComponent="confirmationPanel"] {{
 QFrame[pandaComponent="consequence"][destructive="true"] {{
     background: {c.destructive_note}; border: {b.hairline}px solid {c.error_tint};
     border-radius: {r.control}px; color: {c.destructive_note_text};
+}}
+QFrame[pandaComponent="workRail"] {{
+    background: {c.navigation_rail}; border: none;
+}}
+QFrame[pandaComponent="railBrand"] {{
+    background: {c.navigation_rail}; border: none;
+    border-bottom: {b.hairline}px solid {c.navigation_active};
+}}
+QLabel[pandaComponent="brandMark"] {{
+    background: {c.brand}; color: {c.text_on_color}; border-radius: {r.compact_control}px;
+}}
+QLabel[pandaComponent="brandName"] {{ color: #f1f4f7; background: transparent; }}
+QLabel[pandaComponent="brandVersion"] {{ color: #6b7480; background: transparent; }}
+QPushButton[pandaComponent="navigationButton"] {{
+    background: transparent; border: {b.hairline}px solid transparent;
+    border-radius: {r.control}px; padding: 0; text-align: right;
+}}
+QPushButton[pandaComponent="navigationButton"]:hover {{ background: {c.navigation_task}; }}
+QPushButton[pandaComponent="navigationButton"]:focus {{
+    border: {b.focus}px solid {c.navigation_accent}; background: {c.navigation_task};
+}}
+QPushButton[pandaComponent="navigationButton"][active="true"] {{
+    background: {c.navigation_active}; border-color: {c.navigation_active};
+}}
+QLabel[pandaComponent="navigationLabel"] {{ color: {c.navigation_text}; background: transparent; }}
+QLabel[pandaComponent="navigationLabel"][active="true"] {{ color: {c.text_on_color}; }}
+QLabel[pandaComponent="navigationIcon"] {{ background: transparent; }}
+QLabel[pandaComponent="navigationCount"] {{
+    min-width: 12px; min-height: 20px; max-height: 20px; padding: 0 5px;
+    color: #8a93a1; background: {c.navigation_active}; border-radius: 10px;
+}}
+QLabel[pandaComponent="navigationCount"][active="true"] {{
+    color: #f0b64a; background: #3a2f14;
+}}
+QFrame[pandaComponent="navigationAccent"] {{
+    background: {c.navigation_accent}; border: none; border-radius: 2px;
+}}
+QWidget[pandaComponent="taskDockContainer"] {{
+    background: {c.navigation_rail}; border-top: {b.hairline}px solid {c.navigation_active};
+}}
+QFrame[pandaComponent="taskDock"] {{
+    background: {c.navigation_task}; border: {b.hairline}px solid {c.navigation_border};
+    border-radius: {r.control}px;
+}}
+QLabel[pandaComponent="taskIndicator"] {{
+    background: #6b7480; border-radius: 4px;
+}}
+QLabel[pandaComponent="taskIndicator"][active="true"] {{ background: {c.navigation_accent}; }}
+QLabel[pandaComponent="taskTitle"] {{ color: #e6eaef; background: transparent; }}
+QLabel[pandaComponent="taskCount"] {{ color: {c.navigation_accent}; background: transparent; }}
+QLabel[pandaComponent="taskDetail"] {{ color: #7c8592; background: transparent; }}
+QFrame[pandaComponent="screenHeader"] {{
+    background: {c.surface}; border: none;
+    border-bottom: {b.hairline}px solid {c.border_primary};
+}}
+QScrollArea[pandaComponent="overviewScroll"] {{
+    background: {c.application_background}; border: none;
+}}
+QWidget[pandaComponent="overviewCanvas"] {{ background: {c.application_background}; }}
+QFrame[pandaComponent="overviewCard"], QFrame[pandaComponent="overviewPanel"] {{
+    background: {c.surface}; border: {b.hairline}px solid {c.border_primary};
+    border-radius: {r.card}px;
+}}
+QFrame[pandaComponent="cardAccent"][semantic="attention"] {{ background: {c.warning}; border: none; }}
+QFrame[pandaComponent="cardAccent"][semantic="approval"] {{ background: {c.approval}; border: none; }}
+QFrame[pandaComponent="cardAccent"][semantic="export"] {{ background: {c.brand_hover}; border: none; }}
+QLabel[pandaComponent="metricValue"] {{ color: {c.text_primary}; background: transparent; }}
+QLabel[pandaComponent="metricLabel"] {{ color: {c.text_secondary}; background: transparent; }}
+QLabel[pandaComponent="metricUnavailable"] {{ color: {c.text_placeholder}; background: transparent; }}
+QFrame[pandaComponent="breakdownChip"] {{
+    background: {c.surface_secondary}; border: {b.hairline}px solid {c.border_secondary};
+    border-radius: {r.chip}px;
+}}
+QLabel[pandaComponent="breakdownDot"][semantic="attention"] {{ background: {c.warning}; border-radius: 3px; }}
+QLabel[pandaComponent="breakdownDot"][semantic="error"] {{ background: {c.error}; border-radius: 3px; }}
+QLabel[pandaComponent="breakdownDot"][semantic="duplicate"] {{ background: {c.duplicate}; border-radius: 3px; }}
+QFrame[pandaComponent="metricsStrip"] {{
+    background: {c.surface}; border: {b.hairline}px solid {c.border_primary};
+    border-radius: {r.panel}px;
+}}
+QFrame[pandaComponent="metricCell"] {{ background: transparent; border: none; }}
+QFrame[pandaComponent="recentRow"] {{
+    background: transparent; border: none; border-top: {b.hairline}px solid {c.border_secondary};
+}}
+QLabel[pandaComponent="recentDot"][semantic="ready"] {{ background: {c.approval}; border-radius: 3px; }}
+QLabel[pandaComponent="recentDot"][semantic="warning"] {{ background: {c.warning}; border-radius: 3px; }}
+QLabel[pandaComponent="recentDot"][semantic="error"] {{ background: {c.error}; border-radius: 3px; }}
+QLabel[pandaComponent="recentDot"][semantic="new"] {{ background: {c.informational}; border-radius: 3px; }}
+QLabel[pandaComponent="recentDot"][semantic="exported"] {{ background: {c.exported}; border-radius: 3px; }}
+QLabel[pandaComponent="recentDot"][semantic="duplicate"] {{ background: {c.duplicate}; border-radius: 3px; }}
+QLabel[pandaComponent="recentDot"][semantic="irrelevant"],
+QLabel[pandaComponent="recentDot"][semantic="neutral"] {{ background: {c.irrelevant}; border-radius: 3px; }}
+QFrame[pandaComponent="idleTaskCard"] {{
+    background: {c.surface_secondary}; border: {b.hairline}px solid {c.border_secondary};
+    border-radius: {r.control}px;
+}}
+QFrame[pandaComponent="routePlaceholder"] {{
+    background: {c.application_background}; border: none;
 }}
 """
 

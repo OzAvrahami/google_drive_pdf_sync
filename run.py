@@ -2,7 +2,8 @@
 Entry point for the local accountant tool.
 
 Usage:
-    python run.py
+    python run.py             # legacy production UI
+    python run.py --panda2    # Panda 2.0 development shell
 """
 import logging
 import sys
@@ -12,6 +13,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from app.config import ensure_dirs
 from app.services.document_store import DocumentStore, DocumentStoreLoadError
 from app.ui.main_window import MainWindow
+from app.ui.shell import PandaMainWindow
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -23,19 +25,33 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def main() -> int:
+PANDA2_DEVELOPMENT_FLAG = "--panda2"
+
+
+def panda2_requested(arguments: list[str]) -> bool:
+    return PANDA2_DEVELOPMENT_FLAG in arguments[1:]
+
+
+def qt_arguments(arguments: list[str]) -> list[str]:
+    return [argument for argument in arguments if argument != PANDA2_DEVELOPMENT_FLAG]
+
+
+def main(arguments: list[str] | None = None) -> int:
+    startup_arguments = list(sys.argv if arguments is None else arguments)
+    use_panda2 = panda2_requested(startup_arguments)
     ensure_dirs()
 
-    app = QApplication(sys.argv)
-    app.setApplicationName("כלי חשבונאות")
+    app = QApplication(qt_arguments(startup_arguments))
+    app.setApplicationName("Panda 2.0" if use_panda2 else "כלי חשבונאות")
     app.setOrganizationName("Internal")
 
     # Right-to-left UI for Hebrew
     from PySide6.QtCore import Qt
     app.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
-    # Apply a clean stylesheet
-    app.setStyleSheet(_STYLESHEET)
+    # Legacy styling remains scoped to the default legacy startup path.
+    if not use_panda2:
+        app.setStyleSheet(_STYLESHEET)
 
     try:
         store = DocumentStore()
@@ -51,7 +67,7 @@ def main() -> int:
         )
         return 1
 
-    window = MainWindow(store)
+    window = PandaMainWindow(store) if use_panda2 else MainWindow(store)
     window.show()
 
     logger.info("Application started.")
