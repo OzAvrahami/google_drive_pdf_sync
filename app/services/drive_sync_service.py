@@ -8,10 +8,11 @@ import logging
 from typing import Callable, Optional
 
 from app.clients.drive_client import get_drive_service, get_folder_pdf_hierarchy
-from app.config import GOOGLE_DRIVE_PARENT_FOLDER_ID
+from app.config import DOWNLOADS_DIR, GOOGLE_DRIVE_PARENT_FOLDER_ID
 from app.models.document import Document
 from app.services.document_store import DocumentStore
 from app.services.exclusion_service import load_exclusion_ids
+from app.utils.pdf_downloader import remove_cached_download, resolve_local_path
 
 logger = logging.getLogger(__name__)
 
@@ -85,10 +86,15 @@ class DriveSyncService:
                 skipped_count += 1
 
             elif rec.get("modifiedTime", "") > existing.updated_at:
-                # File was modified in Drive — re-queue for processing.
+                # Invalidate every known cache destination before re-queuing.
+                # A failed invalidation aborts the scan rather than allowing
+                # stale local bytes to win during the next processing pass.
+                _invalidate_changed_cache(existing, rec)
                 existing.status = "new"
                 existing.file_name = rec["name"]
                 existing.folder_path = rec.get("folder_path", "")
+                existing.local_path = ""
+                existing.raw_text_path = ""
                 to_upsert.append(existing)
                 updated_count += 1
                 logger.debug("Updated: %s/%s", rec.get("folder_path"), rec["name"])
@@ -115,3 +121,21 @@ class DriveSyncService:
 def _progress(cb: Optional[Progress], msg: str) -> None:
     if cb:
         cb(msg)
+
+
+def _invalidate_changed_cache(existing: Document, remote_record: dict) -> None:
+    root = str(DOWNLOADS_DIR)
+    candidates = {
+        resolve_local_path(
+            root,
+            {
+                "name": existing.file_name,
+                "folder_path": existing.folder_path,
+            },
+        ),
+        resolve_local_path(root, remote_record),
+    }
+    if existing.local_path:
+        candidates.add(existing.local_path)
+    for candidate in candidates:
+        remove_cached_download(root, candidate)
