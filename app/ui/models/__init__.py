@@ -11,6 +11,7 @@ from app.ui.models.queue_policy import (
     calculate_queue_counts,
     route_for,
 )
+from app.ui.models.task_list_model import TaskListModel, TaskRoles
 from app.ui.models.workspace_queue_model import WorkspaceQueueModel
 
 __all__ = [
@@ -23,6 +24,8 @@ __all__ = [
     "QueueCounts",
     "QueueRoute",
     "ReadySegment",
+    "TaskListModel",
+    "TaskRoles",
     "WorkspaceQueueModel",
     "calculate_queue_counts",
     "route_for",

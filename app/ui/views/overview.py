@@ -19,7 +19,9 @@ from PySide6.QtWidgets import (
 
 from app.models.document import Document
 from app.ui.components import ButtonVariant, PandaButton
+from app.ui.models.task_list_model import TaskListModel
 from app.ui.routes import AppRoute
+from app.ui.tasks.overview_task_summary import OverviewTaskSummary
 from app.ui.theme.direction import isolate_ltr
 from app.ui.theme.tokens import SPACING
 from app.ui.theme.typography import TypographyRole, apply_typography
@@ -194,6 +196,7 @@ class OverviewView(QWidget):
         documents: Iterable[Document] = (),
         *,
         now: datetime | None = None,
+        task_model: TaskListModel | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -322,19 +325,8 @@ class OverviewView(QWidget):
         task_title = QLabel("משימות רקע")
         apply_typography(task_title, TypographyRole.LABEL)
         task_layout.addWidget(task_title)
-        idle = QFrame()
-        idle.setProperty("pandaComponent", "idleTaskCard")
-        idle_layout = QVBoxLayout(idle)
-        idle_layout.setContentsMargins(12, 12, 12, 12)
-        idle_title = QLabel("אין משימות פעילות")
-        apply_typography(idle_title, TypographyRole.COMPACT_BODY)
-        idle_detail = QLabel("סריקה ועיבוד יחוברו למרכז המשימות בשלב הבא.")
-        idle_detail.setProperty("pandaRole", "muted")
-        idle_detail.setWordWrap(True)
-        apply_typography(idle_detail, TypographyRole.HELPER)
-        idle_layout.addWidget(idle_title)
-        idle_layout.addWidget(idle_detail)
-        task_layout.addWidget(idle)
+        self.task_summary = OverviewTaskSummary(task_model)
+        task_layout.addWidget(self.task_summary)
         task_layout.addStretch()
         lower_row.addWidget(task_panel, 2)
         layout.addLayout(lower_row)

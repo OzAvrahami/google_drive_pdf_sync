@@ -16,7 +16,6 @@ from PySide6.QtWidgets import QApplication, QScrollArea
 import run
 from app.models.document import Document
 from app.services.document_store import DocumentStoreLoadError
-from app.ui.components.navigation import TaskDockState
 from app.ui.models.queue_policy import calculate_queue_counts
 from app.ui.routes import AppRoute, ROUTES
 from app.ui.shell import PandaMainWindow
@@ -226,15 +225,13 @@ def test_header_operational_actions_are_visible_but_development_safe(qapp) -> No
     assert shell.process_button.accessibleDescription()
 
 
-def test_task_dock_exposes_phase_f_state_seam(qapp) -> None:
+def test_task_dock_starts_in_real_idle_state(qapp) -> None:
     shell = PandaMainWindow(ReadOnlySource())
     dock = shell.navigation.task_dock
 
     assert dock.state.active_count == 0
     assert dock.state.title == "אין משימות פעילות"
-    dock.set_state(TaskDockState("סריקה", "קורא מסמכים", 1))
-    assert dock.state.active_count == 1
-    assert dock.property("active") is True
+    assert dock.state.semantic == "idle"
 
 
 def test_minimum_layout_keeps_rail_routes_and_overview_sections(qapp) -> None:

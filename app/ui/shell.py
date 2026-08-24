@@ -5,24 +5,29 @@ from __future__ import annotations
 from typing import Protocol
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QCloseEvent, QResizeEvent
 from PySide6.QtWidgets import (
     QBoxLayout,
     QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
+from app.application.task_manager import TaskManager
 from app.models.document import Document
 from app.ui.components import ButtonVariant, NavigationRail, PandaButton
 from app.ui.models.queue_policy import calculate_queue_counts
+from app.ui.models.task_list_model import TaskListModel
 from app.ui.routes import AppRoute, ROUTES, RouteViewKind, route_definition
 from app.ui.theme import apply_panda_theme
 from app.ui.theme.tokens import LAYOUT, SPACING
 from app.ui.theme.typography import TypographyRole, apply_typography
+from app.ui.tasks.task_center import TaskCenter
 from app.ui.views import OverviewView, QueueRoutePlaceholder
 
 
@@ -31,8 +36,8 @@ class ReadOnlyDocumentSource(Protocol):
 
 
 _DEVELOPMENT_ACTION_REASON = (
-    "הפעולה אינה זמינה במעטפת הפיתוח של Panda 2.0. "
-    "הפעלת משימות הרקע תעבור למרכז המשימות בשלב הבא."
+    "הפעולה עדיין אינה זמינה ב-Panda 2.0. "
+    "חיבור הפעולה התפעולית ממתין לשלב האמינות והתורים הבא."
 )
 
 
@@ -41,9 +46,17 @@ class PandaMainWindow(QMainWindow):
 
     routeChanged = Signal(str)
 
-    def __init__(self, document_source: ReadOnlyDocumentSource, parent=None) -> None:
+    def __init__(
+        self,
+        document_source: ReadOnlyDocumentSource,
+        *,
+        task_manager: TaskManager | None = None,
+        parent=None,
+    ) -> None:
         super().__init__(parent)
         self._document_source = document_source
+        self.task_manager = task_manager or TaskManager()
+        self.task_model = TaskListModel(self.task_manager, self)
         self._documents: tuple[Document, ...] = ()
         self._current_route = AppRoute.OVERVIEW
         self._views: dict[AppRoute, QWidget] = {}
@@ -87,7 +100,7 @@ class PandaMainWindow(QMainWindow):
         content_layout.setSpacing(0)
         shell_layout.addWidget(content, 1)
 
-        self.navigation = NavigationRail()
+        self.navigation = NavigationRail(self.task_model)
         self.navigation.routeRequested.connect(self.navigate)
         shell_layout.addWidget(self.navigation)
 
@@ -125,13 +138,18 @@ class PandaMainWindow(QMainWindow):
         content_layout.addWidget(self.stack, 1)
         for definition in ROUTES:
             if definition.view_kind is RouteViewKind.OVERVIEW:
-                view = OverviewView()
+                view = OverviewView(task_model=self.task_model)
                 view.routeRequested.connect(self.navigate)
                 self.overview = view
             else:
                 view = QueueRoutePlaceholder(definition)
             self._views[definition.route] = view
             self.stack.addWidget(view)
+
+        self.task_center = TaskCenter(self.task_model, self.task_manager, root)
+        self.navigation.taskCenterRequested.connect(self.task_center.toggle)
+        self.overview.task_summary.taskCenterRequested.connect(self.task_center.open_panel)
+        self._position_task_center()
 
     def navigate(self, route: AppRoute | str) -> None:
         destination = AppRoute(route)
@@ -163,3 +181,31 @@ class PandaMainWindow(QMainWindow):
         self.overview.refresh(self._documents)
         if hasattr(self, "header_title"):
             self.navigate(self._current_route)
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "task_center"):
+            self._position_task_center()
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        if self.task_manager.has_running_tasks:
+            self.task_center.open_panel()
+            QMessageBox.warning(
+                self,
+                "משימות עדיין פועלות",
+                "לא ניתן לסגור את Panda בזמן שמשימת רקע פועלת. "
+                "המתן לסיום המשימה או בטל אותה דרך מרכז המשימות אם הביטול נתמך.",
+            )
+            event.ignore()
+            return
+        self.task_model.close()
+        super().closeEvent(event)
+
+    def _position_task_center(self) -> None:
+        root = self.centralWidget()
+        if root is None:
+            return
+        height = min(560, max(360, root.height() - 32))
+        self.task_center.resize(360, height)
+        x = max(16, root.width() - LAYOUT.navigation_width - 360 - 16)
+        self.task_center.move(x, max(16, root.height() - height - 16))

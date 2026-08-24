@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QIcon, QKeyEvent
 from PySide6.QtWidgets import (
@@ -18,16 +16,11 @@ from PySide6.QtWidgets import (
 from app.ui.models.queue_policy import QueueCounts
 from app.ui.routes import AppRoute, ROUTES, RouteDefinition
 from app.ui.theme.icons import IconTone, icon_for
+from app.ui.models.task_list_model import TaskListModel
+from app.ui.tasks.task_dock import TaskDock
 from app.ui.theme.stylesheet import repolish, set_dynamic_property
 from app.ui.theme.tokens import LAYOUT, SPACING
 from app.ui.theme.typography import TypographyRole, apply_typography
-
-
-@dataclass(frozen=True, slots=True)
-class TaskDockState:
-    title: str = "אין משימות פעילות"
-    detail: str = "פעולות רקע יופיעו כאן"
-    active_count: int = 0
 
 
 class NavigationButton(QPushButton):
@@ -131,62 +124,11 @@ class NavigationButton(QPushButton):
         super().keyPressEvent(event)
 
 
-class TaskDockPlaceholder(QFrame):
-    """Visual seam for the Phase F task model; idle and read-only in Phase E."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setProperty("pandaComponent", "taskDock")
-        self.setAccessibleName("משימות רקע")
-        root = QVBoxLayout(self)
-        root.setContentsMargins(12, 10, 12, 10)
-        root.setSpacing(5)
-
-        row = QHBoxLayout()
-        row.setSpacing(SPACING.adjacent)
-        self._indicator = QLabel()
-        self._indicator.setProperty("pandaComponent", "taskIndicator")
-        self._indicator.setFixedSize(9, 9)
-        self._title = QLabel()
-        self._title.setProperty("pandaComponent", "taskTitle")
-        apply_typography(self._title, TypographyRole.COMPACT_BODY)
-        self._count = QLabel()
-        self._count.setProperty("pandaComponent", "taskCount")
-        apply_typography(self._count, TypographyRole.BADGE)
-        row.addWidget(self._indicator)
-        row.addWidget(self._title, 1)
-        row.addWidget(self._count)
-        root.addLayout(row)
-
-        self._detail = QLabel()
-        self._detail.setProperty("pandaComponent", "taskDetail")
-        self._detail.setWordWrap(True)
-        apply_typography(self._detail, TypographyRole.HELPER)
-        root.addWidget(self._detail)
-        self.set_state(TaskDockState())
-
-    @property
-    def state(self) -> TaskDockState:
-        return self._state
-
-    def set_state(self, state: TaskDockState) -> None:
-        self._state = state
-        active = state.active_count > 0
-        self.setProperty("active", active)
-        self._indicator.setProperty("active", active)
-        self._title.setText(state.title)
-        self._detail.setText(state.detail)
-        self._count.setText(str(state.active_count) if active else "")
-        self._count.setVisible(active)
-        self.setAccessibleDescription(f"{state.title}. {state.detail}")
-        repolish(self)
-        repolish(self._indicator)
-
-
 class NavigationRail(QFrame):
     routeRequested = Signal(str)
+    taskCenterRequested = Signal()
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, task_model: TaskListModel, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setProperty("pandaComponent", "workRail")
         self.setFixedWidth(LAYOUT.navigation_width)
@@ -239,7 +181,8 @@ class NavigationRail(QFrame):
         dock_container.setProperty("pandaComponent", "taskDockContainer")
         dock_layout = QVBoxLayout(dock_container)
         dock_layout.setContentsMargins(12, 12, 12, 12)
-        self.task_dock = TaskDockPlaceholder()
+        self.task_dock = TaskDock(task_model)
+        self.task_dock.taskCenterRequested.connect(self.taskCenterRequested.emit)
         dock_layout.addWidget(self.task_dock)
         root.addWidget(dock_container)
 

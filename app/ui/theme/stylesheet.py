@@ -219,17 +219,86 @@ QFrame[pandaComponent="navigationAccent"] {{
 QWidget[pandaComponent="taskDockContainer"] {{
     background: {c.navigation_rail}; border-top: {b.hairline}px solid {c.navigation_active};
 }}
-QFrame[pandaComponent="taskDock"] {{
+QPushButton[pandaComponent="taskDock"] {{
     background: {c.navigation_task}; border: {b.hairline}px solid {c.navigation_border};
-    border-radius: {r.control}px;
+    border-radius: {r.control}px; padding: 0; text-align: right;
 }}
+QPushButton[pandaComponent="taskDock"]:hover {{ background: {c.navigation_active}; }}
+QPushButton[pandaComponent="taskDock"]:focus {{ border: {b.focus}px solid {c.navigation_accent}; }}
 QLabel[pandaComponent="taskIndicator"] {{
     background: #6b7480; border-radius: 4px;
 }}
-QLabel[pandaComponent="taskIndicator"][active="true"] {{ background: {c.navigation_accent}; }}
+QLabel[pandaComponent="taskIndicator"][taskState="running"] {{ background: {c.navigation_accent}; }}
+QLabel[pandaComponent="taskIndicator"][taskState="succeeded"] {{ background: {c.approval}; }}
+QLabel[pandaComponent="taskIndicator"][taskState="failed"] {{ background: {c.error}; }}
+QLabel[pandaComponent="taskIndicator"][taskState="cancelled"],
+QLabel[pandaComponent="taskIndicator"][taskState="queued"] {{ background: {c.irrelevant}; }}
 QLabel[pandaComponent="taskTitle"] {{ color: #e6eaef; background: transparent; }}
 QLabel[pandaComponent="taskCount"] {{ color: {c.navigation_accent}; background: transparent; }}
 QLabel[pandaComponent="taskDetail"] {{ color: #7c8592; background: transparent; }}
+QProgressBar[pandaComponent="taskProgress"] {{
+    background: {c.navigation_border}; border: none; border-radius: 2px;
+}}
+QProgressBar[pandaComponent="taskProgress"]::chunk {{
+    background: {c.navigation_accent}; border-radius: 2px;
+}}
+QFrame[pandaComponent="taskCenter"] {{
+    background: {c.surface}; border: {b.hairline}px solid {c.border_control};
+    border-radius: {r.card}px;
+}}
+QFrame[pandaComponent="taskCenterHeader"] {{
+    background: {c.surface}; border: none;
+    border-bottom: {b.hairline}px solid {c.border_secondary};
+}}
+QLabel[pandaComponent="taskCenterCount"] {{
+    color: {c.text_secondary}; background: {c.irrelevant_tint};
+    min-height: 20px; padding: 0 7px; border-radius: 10px;
+}}
+QScrollArea[pandaComponent="taskCenterScroll"], QWidget[pandaComponent="taskCenterBody"] {{
+    background: {c.surface}; border: none;
+}}
+QLabel[pandaComponent="taskCenterSection"] {{ color: {c.text_heading}; }}
+QFrame[pandaComponent="taskCenterRow"] {{
+    background: {c.surface}; border: {b.hairline}px solid {c.border_secondary};
+    border-radius: {r.control}px;
+}}
+QLabel[pandaComponent="taskCenterIndicator"], QLabel[pandaComponent="overviewTaskIndicator"] {{
+    background: {c.irrelevant}; border-radius: 4px;
+}}
+QLabel[pandaComponent="taskCenterIndicator"][taskState="running"],
+QLabel[pandaComponent="overviewTaskIndicator"][taskState="running"] {{ background: {c.brand}; }}
+QLabel[pandaComponent="taskCenterIndicator"][taskState="succeeded"],
+QLabel[pandaComponent="overviewTaskIndicator"][taskState="succeeded"] {{ background: {c.approval}; }}
+QLabel[pandaComponent="taskCenterIndicator"][taskState="failed"],
+QLabel[pandaComponent="overviewTaskIndicator"][taskState="failed"] {{ background: {c.error}; }}
+QLabel[pandaComponent="taskCenterState"][taskState="running"] {{ color: {c.brand_hover}; }}
+QLabel[pandaComponent="taskCenterState"][taskState="succeeded"] {{ color: {c.approval}; }}
+QLabel[pandaComponent="taskCenterState"][taskState="failed"] {{ color: {c.error}; }}
+QLabel[pandaComponent="taskCenterState"][taskState="queued"],
+QLabel[pandaComponent="taskCenterState"][taskState="cancelled"] {{ color: {c.text_secondary}; }}
+QLabel[pandaComponent="taskCenterDetail"] {{ color: {c.text_secondary}; }}
+QProgressBar[pandaComponent="taskCenterProgress"], QProgressBar[pandaComponent="overviewTaskProgress"] {{
+    background: {c.border_secondary}; border: none; border-radius: 3px;
+}}
+QProgressBar[pandaComponent="taskCenterProgress"]::chunk,
+QProgressBar[pandaComponent="overviewTaskProgress"]::chunk {{
+    background: {c.brand}; border-radius: 3px;
+}}
+QPushButton[pandaComponent="taskCancel"] {{
+    color: {c.error}; background: transparent; border: none; padding: 2px 4px;
+}}
+QPushButton[pandaComponent="taskCancel"]:hover {{ color: {c.destructive}; text-decoration: underline; }}
+QPushButton[pandaComponent="taskCancel"]:focus {{ border: {b.focus}px solid {c.focus}; border-radius: {r.compact_control}px; }}
+QPushButton[pandaComponent="taskLink"] {{
+    color: {c.brand_hover}; background: transparent; border: none; text-align: right;
+    padding: 2px 0;
+}}
+QPushButton[pandaComponent="taskLink"]:hover {{ text-decoration: underline; }}
+QPushButton[pandaComponent="taskLink"]:focus {{ border: {b.focus}px solid {c.focus}; border-radius: {r.compact_control}px; }}
+QFrame[pandaComponent="overviewTaskSummary"] {{
+    background: {c.surface_secondary}; border: {b.hairline}px solid {c.border_secondary};
+    border-radius: {r.control}px;
+}}
 QFrame[pandaComponent="screenHeader"] {{
     background: {c.surface}; border: none;
     border-bottom: {b.hairline}px solid {c.border_primary};
