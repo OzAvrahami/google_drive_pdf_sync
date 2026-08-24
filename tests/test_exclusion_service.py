@@ -16,6 +16,7 @@ All tests use tmp_path so no real data files are touched.
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -50,12 +51,17 @@ def _make_doc(
     )
 
 
+@contextmanager
 def _patch_registry(tmp_path: Path):
-    """Context manager that redirects EXCLUDED_FILES_JSON to a tmp file."""
-    return patch(
-        "app.services.exclusion_service.EXCLUDED_FILES_JSON",
-        tmp_path / "excluded_files.json",
-    )
+    """Redirect registry and deletion boundary to isolated test storage."""
+    with (
+        patch(
+            "app.services.exclusion_service.EXCLUDED_FILES_JSON",
+            tmp_path / "excluded_files.json",
+        ),
+        patch("app.services.exclusion_service.DOWNLOADS_DIR", tmp_path),
+    ):
+        yield
 
 
 # ── add_exclusion — registry entry ────────────────────────────────────────────
