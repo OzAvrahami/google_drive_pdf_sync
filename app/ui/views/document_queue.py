@@ -1,0 +1,336 @@
+"""Real Panda 2.0 Inbox and Needs Attention queue views."""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, Qt, Signal
+from PySide6.QtGui import QColor, QPainter
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QButtonGroup,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QStackedWidget,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
+)
+
+from app.ui.components import ButtonVariant, EmptyState, PandaButton, SearchField
+from app.ui.models import (
+    AttentionSegment,
+    DocumentColumn,
+    DocumentFilterProxyModel,
+    DocumentRoles,
+    DocumentTableModel,
+    QueueRoute,
+)
+from app.ui.models.queue_policy import belongs_to_route
+from app.ui.theme.icons import IconName
+from app.ui.theme.tokens import COLORS, CONTROLS, SPACING
+from app.ui.theme.typography import TypographyRole, apply_typography
+
+
+_ATTENTION_SEGMENTS: tuple[tuple[AttentionSegment, str], ...] = (
+    (AttentionSegment.ALL, "הכל"),
+    (AttentionSegment.NEEDS_REVIEW, "לבדיקה"),
+    (AttentionSegment.FAILED, "נכשל"),
+    (AttentionSegment.SKIPPED, "דולג"),
+    (AttentionSegment.SUSPECTED_DUPLICATE, "חשד לכפילות"),
+)
+
+_STATUS_COLORS = {
+    "new": (COLORS.surface_secondary, COLORS.informational),
+    "needs_review": (COLORS.warning_tint, COLORS.warning),
+    "failed": (COLORS.error_tint, COLORS.error),
+    "skipped": (COLORS.irrelevant_tint, COLORS.irrelevant),
+    "processed": (COLORS.irrelevant_tint, COLORS.processed),
+    "approved": (COLORS.approval_tint, COLORS.approval),
+}
+
+
+class QueueStatusDelegate(QStyledItemDelegate):
+    """Render status semantics as a compact badge without coloring whole rows."""
+
+    def paint(self, painter: QPainter, option, index: QModelIndex) -> None:
+        raw_status = str(index.data(int(DocumentRoles.RAW_STATUS)) or "")
+        label = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+        background, foreground = _STATUS_COLORS.get(
+            raw_status, (COLORS.irrelevant_tint, COLORS.text_muted)
+        )
+
+        base = QStyleOptionViewItem(option)
+        self.initStyleOption(base, index)
+        base.text = ""
+        style = option.widget.style() if option.widget is not None else QApplication.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, base, painter, option.widget)
+
+        painter.save()
+        metrics = option.fontMetrics
+        width = min(option.rect.width() - 12, metrics.horizontalAdvance(label) + 18)
+        badge = option.rect.adjusted(6, 9, 6 - option.rect.width() + width, -9)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(background))
+        painter.drawRoundedRect(badge, 7, 7)
+        painter.setPen(QColor(foreground))
+        painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, label)
+        painter.restore()
+
+
+class QueueAttentionDelegate(QStyledItemDelegate):
+    """Expose overlapping duplicate/manual state without full-row warning color."""
+
+    @staticmethod
+    def indicator_labels(index: QModelIndex) -> tuple[str, ...]:
+        labels: list[str] = []
+        if bool(index.data(int(DocumentRoles.DUPLICATE_SUSPECTED))):
+            labels.append("חשד לכפילות")
+        if bool(index.data(int(DocumentRoles.MANUALLY_CORRECTED))):
+            labels.append("תוקן ידנית")
+        return tuple(labels)
+
+    def paint(self, painter: QPainter, option, index: QModelIndex) -> None:
+        decorated = QStyleOptionViewItem(option)
+        self.initStyleOption(decorated, index)
+        labels = self.indicator_labels(index)
+        if labels:
+            suffix = " · ".join(labels)
+            decorated.text = f"{decorated.text}  ·  {suffix}" if decorated.text else suffix
+            decorated.palette.setColor(
+                decorated.palette.ColorRole.Text,
+                QColor(COLORS.duplicate if "חשד לכפילות" in labels else COLORS.brand_hover),
+            )
+        style = option.widget.style() if option.widget is not None else QApplication.style()
+        style.drawControl(
+            QStyle.ControlElement.CE_ItemViewItem, decorated, painter, option.widget
+        )
+
+
+class DocumentQueueView(QWidget):
+    """One route-specific proxy and native table over a shared source model."""
+
+    processRequested = Signal()
+    scanRequested = Signal()
+
+    def __init__(
+        self,
+        source_model: DocumentTableModel,
+        route: QueueRoute,
+        *,
+        parent: QWidget | None = None,
+    ) -> None:
+        if route not in {QueueRoute.INBOX, QueueRoute.ATTENTION}:
+            raise ValueError("Phase G queue view supports Inbox or Needs Attention only")
+        super().__init__(parent)
+        self.route = route
+        self.source_model = source_model
+        self.proxy_model = DocumentFilterProxyModel(self)
+        self.proxy_model.setSourceModel(source_model)
+        self.proxy_model.set_route(route)
+        self.setProperty("pandaComponent", "documentQueueView")
+        self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self._build_ui()
+        self._connect_model_signals()
+        self._refresh_state()
+
+    @property
+    def selected_document_ids(self) -> tuple[str, ...]:
+        selection = self.table.selectionModel()
+        if selection is None:
+            return ()
+        result: list[str] = []
+        for index in selection.selectedRows(0):
+            document_id = self.proxy_model.document_id_for_index(index)
+            if document_id is not None:
+                result.append(document_id)
+        return tuple(result)
+
+    def restore_selected_document_ids(self, document_ids: Iterable[str]) -> None:
+        selection = self.table.selectionModel()
+        if selection is None:
+            return
+        selection.clearSelection()
+        for document_id in document_ids:
+            index = self.proxy_model.index_for_document_id(str(document_id), 0)
+            if index.isValid():
+                selection.select(
+                    index,
+                    QItemSelectionModel.SelectionFlag.Select
+                    | QItemSelectionModel.SelectionFlag.Rows,
+                )
+
+    def set_attention_segment(self, segment: AttentionSegment) -> None:
+        if self.route is not QueueRoute.ATTENTION:
+            return
+        segment = AttentionSegment(segment)
+        self.proxy_model.set_attention_segment(segment)
+        button = self.segment_buttons.get(segment)
+        if button is not None:
+            button.setChecked(True)
+        self._refresh_state()
+
+    def _build_ui(self) -> None:
+        root = QVBoxLayout(self)
+        root.setContentsMargins(SPACING.page, SPACING.panel, SPACING.page, SPACING.page)
+        root.setSpacing(SPACING.standard)
+
+        heading = QHBoxLayout()
+        heading.setSpacing(SPACING.adjacent)
+        title = QLabel("נכנסו" if self.route is QueueRoute.INBOX else "דורש טיפול")
+        apply_typography(title, TypographyRole.PAGE_TITLE)
+        self.count_label = QLabel("0")
+        self.count_label.setProperty("pandaComponent", "queueCount")
+        apply_typography(self.count_label, TypographyRole.BADGE)
+        heading.addWidget(title)
+        heading.addWidget(self.count_label)
+        heading.addStretch()
+
+        self.workspace_button = PandaButton(
+            "פתיחת מסמך — בשלב הבא", variant=ButtonVariant.GHOST
+        )
+        self.workspace_button.setEnabled(False)
+        self.workspace_button.setToolTip("סביבת העבודה למסמך תתווסף בשלב הבא")
+        heading.addWidget(self.workspace_button)
+        if self.route is QueueRoute.INBOX:
+            self.process_button = PandaButton(
+                "עיבוד מסמכים", variant=ButtonVariant.PRIMARY
+            )
+            self.process_button.clicked.connect(self.processRequested)
+            heading.addWidget(self.process_button)
+        else:
+            self.process_button = None
+        root.addLayout(heading)
+
+        controls = QHBoxLayout()
+        controls.setSpacing(SPACING.adjacent)
+        self.search_field = SearchField()
+        self.search_field.setMaximumWidth(390)
+        self.search_field.textChanged.connect(self._search_changed)
+        controls.addWidget(self.search_field)
+        controls.addStretch()
+        self.segment_buttons: dict[AttentionSegment, PandaButton] = {}
+        self.segment_group: QButtonGroup | None = None
+        if self.route is QueueRoute.ATTENTION:
+            self.segment_group = QButtonGroup(self)
+            self.segment_group.setExclusive(True)
+            for segment, label in _ATTENTION_SEGMENTS:
+                button = PandaButton(label, variant=ButtonVariant.GHOST)
+                button.setProperty("pandaComponent", "queueSegment")
+                button.setCheckable(True)
+                button.setMinimumHeight(CONTROLS.compact_button_height)
+                button.clicked.connect(
+                    lambda _checked=False, value=segment: self.set_attention_segment(value)
+                )
+                self.segment_group.addButton(button)
+                self.segment_buttons[segment] = button
+                controls.addWidget(button)
+            self.segment_buttons[AttentionSegment.ALL].setChecked(True)
+        root.addLayout(controls)
+
+        self.content_stack = QStackedWidget()
+        self.table = QTableView()
+        self.table.setProperty("pandaComponent", "documentQueueTable")
+        self.table.setAccessibleName(
+            "טבלת מסמכים נכנסים"
+            if self.route is QueueRoute.INBOX
+            else "טבלת מסמכים הדורשים טיפול"
+        )
+        self.table.setModel(self.proxy_model)
+        self.table.setSortingEnabled(True)
+        self.table.sortByColumn(
+            DocumentTableModel.column_for(DocumentColumn.DATE),
+            Qt.SortOrder.DescendingOrder,
+        )
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setAlternatingRowColors(False)
+        self.table.setShowGrid(False)
+        self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(CONTROLS.table_row_height)
+        header = self.table.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.setSectionsClickable(True)
+        header.setSortIndicatorShown(True)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        for column, spec in enumerate(DocumentTableModel.column_spec(i) for i in range(self.source_model.columnCount())):
+            self.table.setColumnWidth(column, spec.width_hint)
+        if self.route is QueueRoute.INBOX:
+            self.table.setColumnHidden(DocumentTableModel.column_for(DocumentColumn.ATTENTION), True)
+        status_column = DocumentTableModel.column_for(DocumentColumn.STATUS)
+        self.table.setItemDelegateForColumn(status_column, QueueStatusDelegate(self.table))
+        attention_column = DocumentTableModel.column_for(DocumentColumn.ATTENTION)
+        self.table.setItemDelegateForColumn(
+            attention_column, QueueAttentionDelegate(self.table)
+        )
+        self.content_stack.addWidget(self.table)
+
+        if self.route is QueueRoute.INBOX:
+            self._empty_description = (
+                "לא נמצאו מסמכים שממתינים לעיבוד. אפשר לסרוק את Drive כדי לבדוק שוב."
+            )
+            self.empty_state = EmptyState(
+                "אין מסמכים חדשים",
+                self._empty_description,
+                icon_name=IconName.DOCUMENT,
+                action_text="סריקת Drive",
+            )
+            assert self.empty_state.action_button is not None
+            self.empty_state.action_button.clicked.connect(self.scanRequested)
+        else:
+            self._empty_description = "אין כרגע מסמכים בקטגוריה שנבחרה."
+            self.empty_state = EmptyState(
+                "אין מסמכים שדורשים טיפול",
+                self._empty_description,
+                icon_name=IconName.SUCCESS,
+            )
+        self.content_stack.addWidget(self.empty_state)
+        root.addWidget(self.content_stack, 1)
+
+    def _connect_model_signals(self) -> None:
+        for signal in (
+            self.proxy_model.modelReset,
+            self.proxy_model.rowsInserted,
+            self.proxy_model.rowsRemoved,
+            self.proxy_model.layoutChanged,
+        ):
+            signal.connect(self._refresh_state)
+        self.table.selectionModel().selectionChanged.connect(self._selection_changed)
+
+    def _search_changed(self, query: str) -> None:
+        self.proxy_model.set_search_query(query)
+        self._refresh_state()
+
+    def _selection_changed(self) -> None:
+        self.workspace_button.setToolTip(
+            "סביבת העבודה למסמך תתווסף בשלב הבא"
+            if self.selected_document_ids
+            else "בחרו מסמך; סביבת העבודה תתווסף בשלב הבא"
+        )
+
+    def _route_total(self) -> int:
+        return sum(belongs_to_route(record, self.route) for record in self.source_model.records())
+
+    def _refresh_state(self, *_args) -> None:
+        visible = self.proxy_model.rowCount()
+        self.count_label.setText(str(visible))
+        self.content_stack.setCurrentWidget(self.table if visible else self.empty_state)
+        if visible:
+            return
+        filtered = bool(self.proxy_model.search_query) or (
+            self.route is QueueRoute.ATTENTION
+            and self.proxy_model.attention_segment is not AttentionSegment.ALL
+        )
+        if filtered and self._route_total():
+            self.empty_state.description_label.setText(
+                "אין תוצאות למסננים או לחיפוש הנוכחיים"
+            )
+        else:
+            self.empty_state.description_label.setText(self._empty_description)

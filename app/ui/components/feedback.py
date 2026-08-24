@@ -78,17 +78,17 @@ class EmptyState(QFrame):
         icon_label.setPixmap(icon_for(icon_name, tone=IconTone.BRAND, size=28).pixmap(28, 28))
         root.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        title_label = QLabel(title)
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        apply_typography(title_label, TypographyRole.SECTION_TITLE)
-        root.addWidget(title_label)
+        self.title_label = QLabel(title)
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        apply_typography(self.title_label, TypographyRole.SECTION_TITLE)
+        root.addWidget(self.title_label)
 
-        description_label = QLabel(description)
-        description_label.setProperty("pandaRole", "muted")
-        description_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        description_label.setWordWrap(True)
-        apply_typography(description_label, TypographyRole.COMPACT_BODY)
-        root.addWidget(description_label)
+        self.description_label = QLabel(description)
+        self.description_label.setProperty("pandaRole", "muted")
+        self.description_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.description_label.setWordWrap(True)
+        apply_typography(self.description_label, TypographyRole.COMPACT_BODY)
+        root.addWidget(self.description_label)
 
         self.action_button: PandaButton | None = None
         if action_text:

@@ -347,6 +347,42 @@ QFrame[pandaComponent="idleTaskCard"] {{
 QFrame[pandaComponent="routePlaceholder"] {{
     background: {c.application_background}; border: none;
 }}
+QWidget[pandaComponent="documentQueueView"] {{
+    background: {c.application_background}; border: none;
+}}
+QLabel[pandaComponent="queueCount"] {{
+    min-height: {h.badge_height}px; padding: 0 7px;
+    color: {c.text_muted}; background: {c.irrelevant_tint};
+    border-radius: {r.chip}px;
+}}
+QPushButton[pandaComponent="queueSegment"] {{
+    min-height: {h.compact_button_height}px; padding: 0 10px;
+}}
+QPushButton[pandaComponent="queueSegment"]:checked {{
+    color: {c.brand_hover}; background: {c.brand_tint};
+    border-color: {c.brand_border_tint};
+}}
+QTableView[pandaComponent="documentQueueTable"] {{
+    background: {c.surface}; alternate-background-color: {c.surface_secondary};
+    color: {c.text_primary}; border: {b.hairline}px solid {c.border_primary};
+    border-radius: {r.panel}px; gridline-color: {c.border_row};
+    selection-background-color: {c.selection};
+    selection-color: {c.text_primary}; outline: 0;
+}}
+QTableView[pandaComponent="documentQueueTable"]::item {{
+    padding: 0 8px; border-bottom: {b.hairline}px solid {c.border_row};
+}}
+QTableView[pandaComponent="documentQueueTable"]::item:selected {{
+    background: {c.selection}; border-bottom-color: {c.selection_border};
+}}
+QTableView[pandaComponent="documentQueueTable"]:focus {{
+    border: {b.focus}px solid {c.focus};
+}}
+QTableView[pandaComponent="documentQueueTable"] QHeaderView::section {{
+    background: {c.surface_secondary}; color: {c.text_muted};
+    border: none; border-bottom: {b.hairline}px solid {c.border_primary};
+    padding: 0 8px;
+}}
 """
 
 

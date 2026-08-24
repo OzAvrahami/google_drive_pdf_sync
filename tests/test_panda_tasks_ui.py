@@ -225,11 +225,11 @@ def test_route_navigation_remains_available_while_task_runs(qapp) -> None:
     shell.close()
 
 
-def test_shell_operational_actions_remain_disabled_with_phase_g_reason(qapp) -> None:
+def test_shell_operational_actions_remain_disabled_without_operational_store(qapp) -> None:
     shell = PandaMainWindow(ReadOnlySource())
     assert shell.scan_button.isEnabled() is False
     assert shell.process_button.isEnabled() is False
-    assert "האמינות והתורים" in shell.scan_button.toolTip()
+    assert "מאגר המסמכים התפעולי" in shell.scan_button.toolTip()
     shell.close()
 
 

@@ -18,31 +18,32 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.application.task_manager import TaskManager
+from app.application.task_manager import TaskManager, TaskType
 from app.models.document import Document
 from app.ui.components import ButtonVariant, NavigationRail, PandaButton
-from app.ui.models.queue_policy import calculate_queue_counts
+from app.ui.models.document_table_model import DocumentTableModel
+from app.ui.models.queue_policy import QueueRoute, calculate_queue_counts
 from app.ui.models.task_list_model import TaskListModel
 from app.ui.routes import AppRoute, ROUTES, RouteViewKind, route_definition
 from app.ui.theme import apply_panda_theme
 from app.ui.theme.tokens import LAYOUT, SPACING
 from app.ui.theme.typography import TypographyRole, apply_typography
 from app.ui.tasks.task_center import TaskCenter
-from app.ui.views import OverviewView, QueueRoutePlaceholder
+from app.ui.tasks.operational_tasks import OperationalTaskController
+from app.ui.views import DocumentQueueView, OverviewView, QueueRoutePlaceholder
 
 
 class ReadOnlyDocumentSource(Protocol):
     def all(self) -> list[Document]: ...
 
 
-_DEVELOPMENT_ACTION_REASON = (
-    "הפעולה עדיין אינה זמינה ב-Panda 2.0. "
-    "חיבור הפעולה התפעולית ממתין לשלב האמינות והתורים הבא."
+_UNAVAILABLE_ACTION_REASON = (
+    "הפעולה זמינה רק כאשר Panda 2.0 מחובר למאגר המסמכים התפעולי."
 )
 
 
 class PandaMainWindow(QMainWindow):
-    """Read-only Panda 2.0 shell; legacy MainWindow remains independent."""
+    """Panda 2.0 shell; legacy MainWindow remains independent."""
 
     routeChanged = Signal(str)
 
@@ -51,13 +52,32 @@ class PandaMainWindow(QMainWindow):
         document_source: ReadOnlyDocumentSource,
         *,
         task_manager: TaskManager | None = None,
+        operational_controller: OperationalTaskController | None = None,
+        operational_enabled: bool | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
         self._document_source = document_source
-        self.task_manager = task_manager or TaskManager()
+        if operational_controller is not None:
+            if task_manager is not None and task_manager is not operational_controller.task_manager:
+                raise ValueError("Operational controller and shell must share one TaskManager")
+            self.task_manager = operational_controller.task_manager
+        else:
+            self.task_manager = task_manager or TaskManager()
+        if operational_enabled is None:
+            operational_enabled = all(
+                hasattr(document_source, attribute)
+                for attribute in ("get_by_drive_id", "get_by_status", "upsert")
+            )
+        self.operational_controller = operational_controller
+        if self.operational_controller is None and operational_enabled:
+            self.operational_controller = OperationalTaskController(
+                document_source, self.task_manager, parent=self
+            )
         self.task_model = TaskListModel(self.task_manager, self)
+        self.document_model = DocumentTableModel(parent=self)
         self._documents: tuple[Document, ...] = ()
+        self._documents_by_id: dict[str, Document] = {}
         self._current_route = AppRoute.OVERVIEW
         self._views: dict[AppRoute, QWidget] = {}
         self.setWindowTitle("Panda 2.0")
@@ -65,6 +85,7 @@ class PandaMainWindow(QMainWindow):
         self.resize(LAYOUT.target_width, LAYOUT.target_height)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self._build_ui()
+        self._connect_operational_tasks()
         self.refresh()
         self.navigate(AppRoute.OVERVIEW)
 
@@ -126,10 +147,8 @@ class PandaMainWindow(QMainWindow):
 
         self.scan_button = PandaButton("סריקת Drive", variant=ButtonVariant.SECONDARY)
         self.process_button = PandaButton("עיבוד מסמכים", variant=ButtonVariant.PRIMARY)
-        for button in (self.scan_button, self.process_button):
-            button.setEnabled(False)
-            button.setToolTip(_DEVELOPMENT_ACTION_REASON)
-            button.setAccessibleDescription(_DEVELOPMENT_ACTION_REASON)
+        self.scan_button.clicked.connect(self._submit_scan)
+        self.process_button.clicked.connect(self._submit_process)
         header_layout.addWidget(self.scan_button)
         header_layout.addWidget(self.process_button)
         content_layout.addWidget(self.header)
@@ -141,6 +160,15 @@ class PandaMainWindow(QMainWindow):
                 view = OverviewView(task_model=self.task_model)
                 view.routeRequested.connect(self.navigate)
                 self.overview = view
+            elif definition.view_kind is RouteViewKind.DOCUMENT_QUEUE:
+                assert definition.queue_route is not None
+                view = DocumentQueueView(self.document_model, definition.queue_route)
+                view.scanRequested.connect(self._submit_scan)
+                view.processRequested.connect(self._submit_process)
+                if definition.queue_route is QueueRoute.INBOX:
+                    self.inbox = view
+                else:
+                    self.attention = view
             else:
                 view = QueueRoutePlaceholder(definition)
             self._views[definition.route] = view
@@ -150,6 +178,7 @@ class PandaMainWindow(QMainWindow):
         self.navigation.taskCenterRequested.connect(self.task_center.toggle)
         self.overview.task_summary.taskCenterRequested.connect(self.task_center.open_panel)
         self._position_task_center()
+        self._refresh_action_availability()
 
     def navigate(self, route: AppRoute | str) -> None:
         destination = AppRoute(route)
@@ -168,19 +197,128 @@ class PandaMainWindow(QMainWindow):
                 else 0
             )
             self.header_subtitle.setText(
-                f"{count} מסמכים · תצוגת התור תושלם בשלב הבא"
+                f"{count} מסמכים"
             )
         if changed:
             self.routeChanged.emit(destination.value)
 
     def refresh(self) -> None:
-        """Reload the current in-memory store projection without persistence writes."""
+        """Reconcile the shared presentation model from the current store."""
+        selections = self._queue_selections()
         self._documents = tuple(self._document_source.all())
+        self._documents_by_id = {
+            document.drive_file_id: document for document in self._documents
+        }
+        self.document_model.replace_documents(self._documents)
+        self._restore_queue_selections(selections)
+        self._refresh_shared_summaries()
+
+    def refresh_document(self, document_id: str) -> None:
+        """Refresh one changed row by stable Drive ID, then reconcile shared counts."""
+        getter = getattr(self._document_source, "get_by_drive_id", None)
+        if getter is None:
+            self.refresh()
+            return
+        selections = self._queue_selections()
+        document = getter(document_id)
+        if document is None:
+            self._documents_by_id.pop(document_id, None)
+            self.document_model.remove_document(document_id)
+        else:
+            self._documents_by_id[document_id] = document
+            if not self.document_model.update_document(document):
+                self.document_model.insert_document(document)
+        self._documents = tuple(self._documents_by_id.values())
+        self._restore_queue_selections(selections)
+        self._refresh_shared_summaries()
+
+    def _refresh_shared_summaries(self) -> None:
         self._counts = calculate_queue_counts(self._documents)
         self.navigation.set_counts(self._counts)
         self.overview.refresh(self._documents)
         if hasattr(self, "header_title"):
             self.navigate(self._current_route)
+
+    def _connect_operational_tasks(self) -> None:
+        if self.operational_controller is None:
+            return
+        self.operational_controller.documentUpdated.connect(self.refresh_document)
+        self.operational_controller.reconciliationRequested.connect(self.refresh)
+        self.operational_controller.availabilityChanged.connect(
+            self._refresh_action_availability
+        )
+
+    def _submit_scan(self) -> None:
+        if self.operational_controller is not None:
+            self.operational_controller.submit_scan()
+
+    def _submit_process(self) -> None:
+        if self.operational_controller is not None:
+            self.operational_controller.submit_process()
+
+    def _refresh_action_availability(self) -> None:
+        if self.operational_controller is None:
+            for button in (self.scan_button, self.process_button):
+                button.setEnabled(False)
+                button.setToolTip(_UNAVAILABLE_ACTION_REASON)
+                button.setAccessibleDescription(_UNAVAILABLE_ACTION_REASON)
+            if hasattr(self, "inbox") and self.inbox.process_button is not None:
+                self.inbox.process_button.setEnabled(False)
+            if hasattr(self, "inbox") and self.inbox.empty_state.action_button is not None:
+                self.inbox.empty_state.action_button.setEnabled(False)
+            return
+
+        scan_pending = self.operational_controller.has_pending_type(TaskType.DRIVE_SCAN)
+        process_pending = self.operational_controller.has_pending_type(
+            TaskType.DOCUMENT_PROCESSING
+        )
+        self._set_action_state(
+            self.scan_button,
+            not scan_pending,
+            "הסריקה כבר פועלת או ממתינה בתור"
+            if scan_pending
+            else "סריקת Drive; הפעולה תמתין בתור אם משימת כתיבה אחרת פועלת",
+        )
+        self._set_action_state(
+            self.process_button,
+            not process_pending,
+            "עיבוד המסמכים כבר פועל או ממתין בתור"
+            if process_pending
+            else "עיבוד מסמכים חדשים; הפעולה תמתין בתור אם משימת כתיבה אחרת פועלת",
+        )
+        if hasattr(self, "inbox") and self.inbox.process_button is not None:
+            self._set_action_state(
+                self.inbox.process_button,
+                not process_pending,
+                self.process_button.toolTip(),
+            )
+        if hasattr(self, "inbox") and self.inbox.empty_state.action_button is not None:
+            self._set_action_state(
+                self.inbox.empty_state.action_button,
+                not scan_pending,
+                self.scan_button.toolTip(),
+            )
+
+    @staticmethod
+    def _set_action_state(button: PandaButton, enabled: bool, description: str) -> None:
+        button.setEnabled(enabled)
+        button.setToolTip(description)
+        button.setAccessibleDescription(description)
+
+    def _queue_selections(self) -> dict[AppRoute, tuple[str, ...]]:
+        return {
+            route: view.selected_document_ids
+            for route, view in self._views.items()
+            if isinstance(view, DocumentQueueView)
+        }
+
+    def _restore_queue_selections(
+        self, selections: dict[AppRoute, tuple[str, ...]]
+    ) -> None:
+        for route, document_ids in selections.items():
+            view = self._views.get(route)
+            if isinstance(view, DocumentQueueView):
+                view.restore_selected_document_ids(document_ids)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
@@ -198,6 +336,8 @@ class PandaMainWindow(QMainWindow):
             )
             event.ignore()
             return
+        if self.operational_controller is not None:
+            self.operational_controller.close()
         self.task_model.close()
         super().closeEvent(event)
 

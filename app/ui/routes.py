@@ -20,6 +20,7 @@ class AppRoute(str, Enum):
 
 class RouteViewKind(str, Enum):
     OVERVIEW = "overview"
+    DOCUMENT_QUEUE = "document_queue"
     QUEUE_PLACEHOLDER = "queue_placeholder"
 
 
@@ -48,7 +49,7 @@ ROUTES: tuple[RouteDefinition, ...] = (
         "נכנסו",
         IconName.DOCUMENT,
         True,
-        RouteViewKind.QUEUE_PLACEHOLDER,
+        RouteViewKind.DOCUMENT_QUEUE,
         "מסמכים חדשים הממתינים לעיבוד",
         QueueRoute.INBOX,
     ),
@@ -57,7 +58,7 @@ ROUTES: tuple[RouteDefinition, ...] = (
         "דורש טיפול",
         IconName.WARNING,
         True,
-        RouteViewKind.QUEUE_PLACEHOLDER,
+        RouteViewKind.DOCUMENT_QUEUE,
         "מסמכים שדורשים בדיקה או טיפול",
         QueueRoute.ATTENTION,
     ),

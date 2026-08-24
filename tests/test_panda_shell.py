@@ -21,6 +21,7 @@ from app.ui.routes import AppRoute, ROUTES
 from app.ui.shell import PandaMainWindow
 from app.ui.theme.icons import icon_for
 from app.ui.theme.tokens import LAYOUT
+from app.ui.views.document_queue import DocumentQueueView
 from app.ui.views.route_placeholder import QueueRoutePlaceholder
 
 
@@ -114,11 +115,13 @@ def test_route_switching_selects_real_destination_widget(qapp, route: AppRoute) 
     )
 
 
-def test_non_overview_routes_are_intentional_read_only_placeholders(qapp) -> None:
+def test_phase_g_routes_are_real_queues_and_remaining_routes_are_placeholders(qapp) -> None:
     shell = PandaMainWindow(ReadOnlySource())
 
     for route in AppRoute:
-        if route is not AppRoute.OVERVIEW:
+        if route in {AppRoute.INBOX, AppRoute.ATTENTION}:
+            assert isinstance(shell.view_for(route), DocumentQueueView)
+        elif route is not AppRoute.OVERVIEW:
             assert isinstance(shell.view_for(route), QueueRoutePlaceholder)
 
 
@@ -221,7 +224,7 @@ def test_header_operational_actions_are_visible_but_development_safe(qapp) -> No
 
     assert shell.scan_button.isEnabled() is False
     assert shell.process_button.isEnabled() is False
-    assert "אינה זמינה" in shell.scan_button.toolTip()
+    assert "זמינה רק" in shell.scan_button.toolTip()
     assert shell.process_button.accessibleDescription()
 
 
