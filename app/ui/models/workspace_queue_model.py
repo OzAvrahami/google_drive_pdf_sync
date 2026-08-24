@@ -93,6 +93,17 @@ class WorkspaceQueueModel(QAbstractListModel):
     def refresh(self, document_ids: Iterable[str]) -> None:
         self.set_document_ids(document_ids, preserve_current=True)
 
+    def start_session(self, document_ids: Iterable[str], current_document_id: str) -> None:
+        """Atomically establish one visible queue and its requested stable ID."""
+        ids = list(dict.fromkeys(str(document_id) for document_id in document_ids))
+        if current_document_id not in ids:
+            raise ValueError("Current Workspace document must belong to the visible queue")
+        self.beginResetModel()
+        self._document_ids = ids
+        self._current_id = current_document_id
+        self.endResetModel()
+        self._emit_current()
+
     def set_current_by_id(self, document_id: str) -> bool:
         if document_id not in self._document_ids:
             return False

@@ -383,6 +383,73 @@ QTableView[pandaComponent="documentQueueTable"] QHeaderView::section {{
     border: none; border-bottom: {b.hairline}px solid {c.border_primary};
     padding: 0 8px;
 }}
+QWidget[pandaComponent="workspaceView"] {{
+    background: {c.application_background}; border: none;
+}}
+QFrame[pandaComponent="workspaceHeader"] {{
+    background: {c.surface}; border: none;
+    border-bottom: {b.hairline}px solid {c.border_primary};
+}}
+QFrame[pandaComponent="workspaceQueueRail"] {{
+    background: {c.surface_secondary}; border: none;
+    border-left: {b.hairline}px solid {c.border_primary};
+}}
+QListView[pandaComponent="workspaceQueueList"] {{
+    background: {c.surface_secondary}; border: none; outline: 0;
+}}
+QListView[pandaComponent="workspaceQueueList"]::item {{
+    border-bottom: {b.hairline}px solid {c.border_row};
+}}
+QListView[pandaComponent="workspaceQueueList"]::item:selected {{
+    background: {c.selection}; border-right: {b.selected_marker}px solid {c.brand};
+}}
+QListView[pandaComponent="workspaceQueueList"]:focus {{
+    border: {b.focus}px solid {c.focus};
+}}
+QFrame[pandaComponent="sourcePreview"] {{
+    background: {c.document_surface}; border: none;
+    border-left: {b.hairline}px solid {c.border_primary};
+}}
+QFrame[pandaComponent="sourceToolbar"] {{
+    background: {c.surface}; border: none;
+    border-bottom: {b.hairline}px solid {c.border_primary};
+}}
+QPdfView[pandaComponent="pdfView"] {{
+    background: {c.document_surface}; border: none;
+}}
+QPlainTextEdit[pandaComponent="extractedTextView"] {{
+    background: {c.surface}; color: {c.text_body};
+    border: none; padding: 14px;
+}}
+QFrame[pandaComponent="workspaceReviewPanel"] {{
+    background: {c.surface}; border: none;
+}}
+QScrollArea[pandaComponent="workspaceReviewScroll"], QWidget[pandaComponent="workspaceReviewBody"] {{
+    background: {c.surface}; border: none;
+}}
+QFrame[pandaComponent="workspaceField"] {{
+    background: {c.surface}; border: {b.hairline}px solid {c.border_secondary};
+    border-radius: {r.control}px;
+}}
+QFrame[pandaComponent="workspaceField"][fieldState="corrected"] {{
+    background: {c.brand_tint}; border-color: {c.brand_border_tint};
+}}
+QFrame[pandaComponent="workspaceField"][fieldState="missing"] {{
+    background: {c.warning_tint}; border-color: {c.warning_tint};
+}}
+QFrame[pandaComponent="workspaceField"][fieldState="invalid"] {{
+    background: {c.error_tint}; border-color: {c.error_tint};
+}}
+QLabel[pandaComponent="workspaceProvenance"] {{ color: {c.text_secondary}; }}
+QLabel[pandaComponent="workspaceDuplicateNotice"] {{
+    background: {c.duplicate_tint}; border: {b.hairline}px solid {c.duplicate_tint};
+    border-radius: {r.control}px;
+}}
+QLabel[pandaComponent="workspaceDuplicateNotice"] {{ color: {c.duplicate}; padding: 8px; }}
+QFrame[pandaComponent="workspaceReadOnlyActions"] {{
+    background: {c.surface_secondary}; border: none;
+    border-top: {b.hairline}px solid {c.border_primary};
+}}
 """
 
 

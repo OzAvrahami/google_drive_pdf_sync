@@ -118,6 +118,7 @@ class DocumentQueueView(QWidget):
 
     processRequested = Signal()
     scanRequested = Signal()
+    openDocumentRequested = Signal(str, object, str)
 
     def __init__(
         self,
@@ -146,11 +147,26 @@ class DocumentQueueView(QWidget):
         if selection is None:
             return ()
         result: list[str] = []
-        for index in selection.selectedRows(0):
+        rows = sorted({index.row() for index in selection.selectedIndexes()})
+        for row in rows:
+            index = self.proxy_model.index(row, 0)
             document_id = self.proxy_model.document_id_for_index(index)
             if document_id is not None:
                 result.append(document_id)
         return tuple(result)
+
+    @property
+    def ordered_visible_document_ids(self) -> tuple[str, ...]:
+        return tuple(
+            document_id
+            for row in range(self.proxy_model.rowCount())
+            if (
+                document_id := self.proxy_model.document_id_for_index(
+                    self.proxy_model.index(row, 0)
+                )
+            )
+            is not None
+        )
 
     def restore_selected_document_ids(self, document_ids: Iterable[str]) -> None:
         selection = self.table.selectionModel()
@@ -165,6 +181,24 @@ class DocumentQueueView(QWidget):
                     QItemSelectionModel.SelectionFlag.Select
                     | QItemSelectionModel.SelectionFlag.Rows,
                 )
+        self._selection_changed()
+
+    def focus_document(self, document_id: str, *, preserve_selection: bool = False) -> bool:
+        index = self.proxy_model.index_for_document_id(document_id, 0)
+        if not index.isValid():
+            return False
+        if not preserve_selection:
+            self.restore_selected_document_ids((document_id,))
+            self.table.setCurrentIndex(index)
+        else:
+            selection = self.table.selectionModel()
+            if selection is not None:
+                selection.setCurrentIndex(
+                    index, QItemSelectionModel.SelectionFlag.NoUpdate
+                )
+        self.table.scrollTo(index, QAbstractItemView.ScrollHint.EnsureVisible)
+        self.table.setFocus()
+        return True
 
     def set_attention_segment(self, segment: AttentionSegment) -> None:
         if self.route is not QueueRoute.ATTENTION:
@@ -192,11 +226,10 @@ class DocumentQueueView(QWidget):
         heading.addWidget(self.count_label)
         heading.addStretch()
 
-        self.workspace_button = PandaButton(
-            "פתיחת מסמך — בשלב הבא", variant=ButtonVariant.GHOST
-        )
+        self.workspace_button = PandaButton("פתיחת מסמך", variant=ButtonVariant.GHOST)
         self.workspace_button.setEnabled(False)
-        self.workspace_button.setToolTip("סביבת העבודה למסמך תתווסף בשלב הבא")
+        self.workspace_button.setToolTip("בחרו מסמך לפתיחה בסביבת העבודה")
+        self.workspace_button.clicked.connect(self._request_selected_open)
         heading.addWidget(self.workspace_button)
         if self.route is QueueRoute.INBOX:
             self.process_button = PandaButton(
@@ -251,6 +284,8 @@ class DocumentQueueView(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.doubleClicked.connect(self._request_index_open)
+        self.table.activated.connect(self._request_index_open)
         self.table.setAlternatingRowColors(False)
         self.table.setShowGrid(False)
         self.table.verticalHeader().setVisible(False)
@@ -302,18 +337,37 @@ class DocumentQueueView(QWidget):
             self.proxy_model.layoutChanged,
         ):
             signal.connect(self._refresh_state)
-        self.table.selectionModel().selectionChanged.connect(self._selection_changed)
+        self.table.selectionModel().selectionChanged.connect(
+            lambda *_selection: self._selection_changed()
+        )
 
     def _search_changed(self, query: str) -> None:
         self.proxy_model.set_search_query(query)
         self._refresh_state()
 
-    def _selection_changed(self) -> None:
+    def _selection_changed(self, *_args) -> None:
+        selected = self.selected_document_ids
+        self.workspace_button.setEnabled(len(selected) == 1)
         self.workspace_button.setToolTip(
-            "סביבת העבודה למסמך תתווסף בשלב הבא"
-            if self.selected_document_ids
-            else "בחרו מסמך; סביבת העבודה תתווסף בשלב הבא"
+            "פתיחת המסמך הנבחר בסביבת העבודה"
+            if len(selected) == 1
+            else "בחרו מסמך אחד לפתיחה"
         )
+
+    def _request_selected_open(self) -> None:
+        selected = self.selected_document_ids
+        if len(selected) == 1:
+            self._emit_open_request(selected[0])
+
+    def _request_index_open(self, index: QModelIndex) -> None:
+        document_id = self.proxy_model.document_id_for_index(index)
+        if document_id is not None:
+            self._emit_open_request(document_id)
+
+    def _emit_open_request(self, document_id: str) -> None:
+        visible_ids = self.ordered_visible_document_ids
+        if document_id in visible_ids:
+            self.openDocumentRequested.emit(document_id, visible_ids, self.route.value)
 
     def _route_total(self) -> int:
         return sum(belongs_to_route(record, self.route) for record in self.source_model.records())

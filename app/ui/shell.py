@@ -31,6 +31,7 @@ from app.ui.theme.typography import TypographyRole, apply_typography
 from app.ui.tasks.task_center import TaskCenter
 from app.ui.tasks.operational_tasks import OperationalTaskController
 from app.ui.views import DocumentQueueView, OverviewView, QueueRoutePlaceholder
+from app.ui.workspace import WorkspaceView
 
 
 class ReadOnlyDocumentSource(Protocol):
@@ -79,6 +80,7 @@ class PandaMainWindow(QMainWindow):
         self._documents: tuple[Document, ...] = ()
         self._documents_by_id: dict[str, Document] = {}
         self._current_route = AppRoute.OVERVIEW
+        self._workspace_origin_selection: tuple[str, ...] = ()
         self._views: dict[AppRoute, QWidget] = {}
         self.setWindowTitle("Panda 2.0")
         self.setMinimumSize(LAYOUT.minimum_width, LAYOUT.minimum_height)
@@ -96,6 +98,10 @@ class PandaMainWindow(QMainWindow):
     @property
     def documents(self) -> tuple[Document, ...]:
         return self._documents
+
+    @property
+    def workspace_active(self) -> bool:
+        return self.mode_stack.currentWidget() is self.workspace
 
     def view_for(self, route: AppRoute | str) -> QWidget:
         return self._views[AppRoute(route)]
@@ -151,10 +157,14 @@ class PandaMainWindow(QMainWindow):
         self.process_button.clicked.connect(self._submit_process)
         header_layout.addWidget(self.scan_button)
         header_layout.addWidget(self.process_button)
-        content_layout.addWidget(self.header)
+        self.route_mode = QWidget()
+        route_layout = QVBoxLayout(self.route_mode)
+        route_layout.setContentsMargins(0, 0, 0, 0)
+        route_layout.setSpacing(0)
+        route_layout.addWidget(self.header)
 
         self.stack = QStackedWidget()
-        content_layout.addWidget(self.stack, 1)
+        route_layout.addWidget(self.stack, 1)
         for definition in ROUTES:
             if definition.view_kind is RouteViewKind.OVERVIEW:
                 view = OverviewView(task_model=self.task_model)
@@ -165,6 +175,7 @@ class PandaMainWindow(QMainWindow):
                 view = DocumentQueueView(self.document_model, definition.queue_route)
                 view.scanRequested.connect(self._submit_scan)
                 view.processRequested.connect(self._submit_process)
+                view.openDocumentRequested.connect(self.open_workspace)
                 if definition.queue_route is QueueRoute.INBOX:
                     self.inbox = view
                 else:
@@ -173,6 +184,13 @@ class PandaMainWindow(QMainWindow):
                 view = QueueRoutePlaceholder(definition)
             self._views[definition.route] = view
             self.stack.addWidget(view)
+
+        self.mode_stack = QStackedWidget()
+        self.mode_stack.addWidget(self.route_mode)
+        self.workspace = WorkspaceView(self._document_by_id)
+        self.workspace.backRequested.connect(self._return_from_workspace)
+        self.mode_stack.addWidget(self.workspace)
+        content_layout.addWidget(self.mode_stack, 1)
 
         self.task_center = TaskCenter(self.task_model, self.task_manager, root)
         self.navigation.taskCenterRequested.connect(self.task_center.toggle)
@@ -185,6 +203,7 @@ class PandaMainWindow(QMainWindow):
         definition = route_definition(destination)
         changed = destination is not self._current_route
         self._current_route = destination
+        self.mode_stack.setCurrentWidget(self.route_mode)
         self.stack.setCurrentWidget(self._views[destination])
         self.navigation.set_active_route(destination)
         self.header_title.setText(definition.label_he)
@@ -202,6 +221,37 @@ class PandaMainWindow(QMainWindow):
         if changed:
             self.routeChanged.emit(destination.value)
 
+    def open_workspace(
+        self,
+        document_id: str,
+        ordered_visible_ids: object,
+        origin_route: str,
+    ) -> bool:
+        try:
+            route = AppRoute(origin_route)
+        except ValueError:
+            return False
+        view = self._views.get(route)
+        if not isinstance(view, DocumentQueueView):
+            return False
+        ids = tuple(str(value) for value in ordered_visible_ids)
+        if document_id not in ids or self._document_by_id(document_id) is None:
+            return False
+        self._current_route = route
+        self.navigation.set_active_route(route)
+        selection = view.selected_document_ids
+        self._workspace_origin_selection = selection or (document_id,)
+        view.focus_document(document_id, preserve_selection=True)
+        self.workspace.open_session(
+            origin_route=route.value,
+            origin_label=route_definition(route).label_he,
+            ordered_document_ids=ids,
+            current_document_id=document_id,
+        )
+        self.mode_stack.setCurrentWidget(self.workspace)
+        self.workspace.setFocus()
+        return True
+
     def refresh(self) -> None:
         """Reconcile the shared presentation model from the current store."""
         selections = self._queue_selections()
@@ -212,6 +262,7 @@ class PandaMainWindow(QMainWindow):
         self.document_model.replace_documents(self._documents)
         self._restore_queue_selections(selections)
         self._refresh_shared_summaries()
+        self._reconcile_workspace()
 
     def refresh_document(self, document_id: str) -> None:
         """Refresh one changed row by stable Drive ID, then reconcile shared counts."""
@@ -231,12 +282,37 @@ class PandaMainWindow(QMainWindow):
         self._documents = tuple(self._documents_by_id.values())
         self._restore_queue_selections(selections)
         self._refresh_shared_summaries()
+        self._reconcile_workspace()
+
+    def _document_by_id(self, document_id: str) -> Document | None:
+        return self._documents_by_id.get(document_id)
+
+    def _return_from_workspace(self, origin_route: str, document_id: str) -> None:
+        self.navigate(origin_route)
+        view = self._views.get(AppRoute(origin_route))
+        if isinstance(view, DocumentQueueView) and document_id:
+            view.restore_selected_document_ids(self._workspace_origin_selection)
+            view.focus_document(document_id, preserve_selection=True)
+
+    def _reconcile_workspace(self) -> None:
+        if not hasattr(self, "workspace") or not self.workspace_active:
+            return
+        try:
+            route = AppRoute(self.workspace.origin_route)
+        except ValueError:
+            return
+        view = self._views.get(route)
+        if isinstance(view, DocumentQueueView):
+            self.workspace.reconcile_queue(
+                view.ordered_visible_document_ids,
+                self._documents_by_id,
+            )
 
     def _refresh_shared_summaries(self) -> None:
         self._counts = calculate_queue_counts(self._documents)
         self.navigation.set_counts(self._counts)
         self.overview.refresh(self._documents)
-        if hasattr(self, "header_title"):
+        if hasattr(self, "header_title") and not self.workspace_active:
             self.navigate(self._current_route)
 
     def _connect_operational_tasks(self) -> None:

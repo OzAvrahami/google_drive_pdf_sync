@@ -148,10 +148,20 @@ def test_empty_inbox_scan_and_process_actions_emit_only_intent(qapp) -> None:
     assert process.count() == 1
 
 
-def test_workspace_action_is_explicitly_deferred_and_selection_only(qapp) -> None:
+def test_workspace_action_opens_one_selected_stable_id(qapp) -> None:
     view = DocumentQueueView(DocumentTableModel(mixed()), QueueRoute.ATTENTION)
+    opened = QSignalSpy(view.openDocumentRequested)
     assert view.workspace_button.isEnabled() is False
-    assert "בשלב הבא" in view.workspace_button.text()
+
+    view.restore_selected_document_ids(("review",))
+    view.workspace_button.click()
+
+    assert view.workspace_button.isEnabled() is True
+    assert opened.count() == 1
+    document_id, visible_ids, route = opened.at(0)
+    assert document_id == "review"
+    assert tuple(visible_ids) == view.ordered_visible_document_ids
+    assert route == QueueRoute.ATTENTION.value
 
 
 def test_attention_delegate_exposes_duplicate_and_manual_indicators(qapp) -> None:

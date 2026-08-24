@@ -23,6 +23,8 @@ class IconName(str, Enum):
     DOCUMENT = "document"
     ERROR = "error"
     INFO = "info"
+    PAGE_NEXT = "page-next"
+    PAGE_PREVIOUS = "page-previous"
     SEARCH = "search"
     SUCCESS = "success"
     TRASH = "trash"
