@@ -14,6 +14,7 @@ from app.ui.workspace.presentation import WorkspaceDocumentPresentation
 
 class WorkspaceHeader(QFrame):
     backRequested = Signal()
+    relatedBackRequested = Signal()
     previousRequested = Signal()
     nextRequested = Signal()
 
@@ -27,6 +28,12 @@ class WorkspaceHeader(QFrame):
         self.back_button = PandaButton("חזרה לתור", variant=ButtonVariant.SECONDARY)
         self.back_button.clicked.connect(self.backRequested)
         root.addWidget(self.back_button)
+        self.related_back_button = PandaButton(
+            "חזרה למסמך החשוד", variant=ButtonVariant.GHOST
+        )
+        self.related_back_button.setVisible(False)
+        self.related_back_button.clicked.connect(self.relatedBackRequested)
+        root.addWidget(self.related_back_button)
         identity = QWidget()
         identity_layout = QVBoxLayout(identity)
         identity_layout.setContentsMargins(0, 5, 0, 5)
@@ -92,3 +99,6 @@ class WorkspaceHeader(QFrame):
 
     def set_dirty(self, dirty: bool, *, editable: bool) -> None:
         self.dirty_indicator.setVisible(bool(dirty and editable))
+
+    def set_related_navigation(self, visible: bool) -> None:
+        self.related_back_button.setVisible(visible)

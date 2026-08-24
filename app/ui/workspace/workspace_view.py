@@ -10,8 +10,15 @@ from PySide6.QtGui import QKeyEvent, QKeySequence, QResizeEvent, QShortcut
 from PySide6.QtWidgets import QBoxLayout, QDialog, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from app.application.document_review_service import DocumentReviewService
+from app.application.duplicate_comparison_service import DuplicateComparisonService
+from app.application.duplicate_resolution_service import DuplicateResolutionService
+from app.application.irrelevant_service import IrrelevantService
 from app.domain.review_draft import ReviewDraft
-from app.domain.workflow_policy import can_approve_structurally, can_review_edit
+from app.domain.workflow_policy import (
+    can_approve_structurally,
+    can_mark_irrelevant,
+    can_review_edit,
+)
 from app.models.document import Document
 from app.ui.components import ConfirmationDialog, FeedbackVariant
 from app.ui.models.workspace_queue_model import WorkspaceQueueModel
@@ -66,6 +73,8 @@ class WorkspaceView(QWidget):
     backRequested = Signal(str, str)
     documentSaved = Signal(str)
     documentApproved = Signal(str)
+    documentMarkedIrrelevant = Signal(str)
+    duplicateResolved = Signal(str)
 
     def __init__(
         self,
@@ -73,7 +82,13 @@ class WorkspaceView(QWidget):
         *,
         review_service: DocumentReviewService | None = None,
         approval_executor: ApprovalExecutor | None = None,
+        duplicate_comparison_service: DuplicateComparisonService | None = None,
+        duplicate_resolution_service: DuplicateResolutionService | None = None,
+        irrelevant_service: IrrelevantService | None = None,
         discard_confirmation: DiscardConfirmation | None = None,
+        destructive_confirmation: Callable[[str, Document, Document | None], bool]
+        | None = None,
+        document_change_notifier: Callable[[str], None] | None = None,
         source_preview: SourcePreview | None = None,
         parent: QWidget | None = None,
     ) -> None:
@@ -83,11 +98,19 @@ class WorkspaceView(QWidget):
         self._provider = document_provider
         self._review_service = review_service
         self._approval_executor = approval_executor
+        self._duplicate_comparison_service = duplicate_comparison_service
+        self._duplicate_resolution_service = duplicate_resolution_service
+        self._irrelevant_service = irrelevant_service
         self._discard_confirmation = discard_confirmation
+        self._destructive_confirmation = destructive_confirmation
+        self._document_change_notifier = document_change_notifier
         self._draft: ReviewDraft | None = None
         self._editable = False
         self._background_changed = False
         self._suspend_current_load = False
+        self._origin_queue_ids: tuple[str, ...] = ()
+        self._related_return_id: str | None = None
+        self._related_document_id: str | None = None
         self.origin_route = ""
         self.origin_label = ""
         self.queue_model = WorkspaceQueueModel(parent=self)
@@ -117,6 +140,7 @@ class WorkspaceView(QWidget):
         root.addWidget(self.unavailable)
 
         self.header.backRequested.connect(self.return_to_queue)
+        self.header.relatedBackRequested.connect(self._return_from_related_document)
         self.header.previousRequested.connect(self._request_previous)
         self.header.nextRequested.connect(self._request_next)
         self.queue_rail.documentRequested.connect(self._request_document)
@@ -124,6 +148,12 @@ class WorkspaceView(QWidget):
         self.review_panel.fieldChanged.connect(self._field_changed)
         self.review_panel.saveRequested.connect(self.save_current_draft)
         self.review_panel.approveRequested.connect(self.approve_current_draft)
+        self.review_panel.irrelevantRequested.connect(self.mark_current_irrelevant)
+        self.review_panel.duplicateDismissRequested.connect(self.dismiss_current_duplicate)
+        self.review_panel.duplicateConfirmRequested.connect(self.confirm_current_duplicate)
+        self.review_panel.openDuplicateCandidateRequested.connect(
+            self.open_duplicate_candidate
+        )
         self.escape_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         self.escape_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         self.escape_shortcut.activated.connect(self.return_to_queue)
@@ -161,7 +191,11 @@ class WorkspaceView(QWidget):
     ) -> None:
         self.origin_route = str(origin_route)
         self.origin_label = origin_label
-        self.queue_model.start_session(ordered_document_ids, current_document_id)
+        self._origin_queue_ids = tuple(dict.fromkeys(str(value) for value in ordered_document_ids))
+        self._related_return_id = None
+        self._related_document_id = None
+        self.header.set_related_navigation(False)
+        self.queue_model.start_session(self._origin_queue_ids, current_document_id)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def confirm_discard_changes(self, reason: str) -> bool:
@@ -211,6 +245,13 @@ class WorkspaceView(QWidget):
         visible = list(dict.fromkeys(str(value) for value in visible_document_ids))
         available = set(str(value) for value in available_document_ids)
         current = self.current_document_id
+        if (
+            self._related_return_id is not None
+            and current is not None
+            and current in available
+            and current not in visible
+        ):
+            visible.append(current)
         if current and current not in available and self.is_dirty:
             self._mark_background_change("המסמך אינו זמין עוד במאגר. הטיוטה נשמרה במסך ולא תיכתב.")
             return
@@ -296,6 +337,191 @@ class WorkspaceView(QWidget):
         self.review_panel.show_feedback(message, FeedbackVariant.ERROR)
         return False
 
+    def mark_current_irrelevant(self) -> bool:
+        document = self._current_document()
+        if document is None or self._irrelevant_service is None:
+            return False
+        if self.is_dirty and not self.confirm_discard_changes("irrelevant"):
+            return False
+        if not self._confirm_destructive("irrelevant", document, None):
+            return False
+        self.source_preview.release_source()
+        result = self._irrelevant_service.mark_irrelevant(
+            document.drive_file_id,
+            expected_status=document.status,
+            expected_updated_at=document.updated_at,
+        )
+        if not result.succeeded:
+            self.source_preview.load_presentation(build_workspace_presentation(document))
+            self._show_destructive_failure(result.reason_code, result.partial_failure)
+            return False
+        assert result.document is not None
+        self._render_document(result.document, create_draft=False)
+        self.review_panel.show_feedback(
+            "המסמך סומן כלא רלוונטי. קובץ המקור ב-Google Drive לא נמחק.",
+            FeedbackVariant.SUCCESS,
+        )
+        self._notify_document_change(
+            self.documentMarkedIrrelevant, document.drive_file_id
+        )
+        return True
+
+    def dismiss_current_duplicate(self) -> bool:
+        document = self._current_document()
+        if document is None or self._duplicate_resolution_service is None:
+            return False
+        if self.is_dirty and not self.confirm_discard_changes("duplicate_dismiss"):
+            return False
+        result = self._duplicate_resolution_service.dismiss(
+            document.drive_file_id,
+            expected_status=document.status,
+            expected_updated_at=document.updated_at,
+        )
+        if not result.succeeded:
+            self._show_destructive_failure(result.reason_code, False)
+            return False
+        assert result.document is not None
+        self._render_document(result.document, create_draft=True)
+        self.review_panel.show_feedback(
+            "החשד לכפילות הוסר. מצב התהליך של המסמך לא השתנה.",
+            FeedbackVariant.SUCCESS,
+        )
+        self._notify_document_change(self.duplicateResolved, document.drive_file_id)
+        return True
+
+    def confirm_current_duplicate(self, candidate_id: str) -> bool:
+        document = self._current_document()
+        candidate = self._provider(candidate_id)
+        if (
+            document is None
+            or candidate is None
+            or self._duplicate_resolution_service is None
+        ):
+            self.review_panel.show_feedback(
+                "הרשומה התואמת אינה זמינה; לא ניתן לאשר כפילות.",
+                FeedbackVariant.ERROR,
+            )
+            return False
+        if self.is_dirty and not self.confirm_discard_changes("duplicate_confirm"):
+            return False
+        if not self._confirm_destructive("duplicate", document, candidate):
+            return False
+        self.source_preview.release_source()
+        result = self._duplicate_resolution_service.confirm(
+            document.drive_file_id,
+            candidate_id,
+            confirmed=True,
+            expected_status=document.status,
+            expected_updated_at=document.updated_at,
+        )
+        if not result.succeeded:
+            self.source_preview.load_presentation(build_workspace_presentation(document))
+            partial = bool(
+                result.irrelevant_result and result.irrelevant_result.partial_failure
+            )
+            self._show_destructive_failure(result.reason_code, partial)
+            return False
+        assert result.document is not None
+        self._render_document(result.document, create_draft=False)
+        self.review_panel.show_feedback(
+            "המסמך הנוכחי אושר ככפילות וסומן כלא רלוונטי. המסמך הקיים נשאר ללא שינוי.",
+            FeedbackVariant.SUCCESS,
+        )
+        self._notify_document_change(
+            self.documentMarkedIrrelevant, document.drive_file_id
+        )
+        return True
+
+    def open_duplicate_candidate(self, candidate_id: str) -> bool:
+        current = self.current_document_id
+        candidate = self._provider(candidate_id)
+        if current is None or candidate is None:
+            self.review_panel.show_feedback(
+                "הרשומה התואמת אינה זמינה.", FeedbackVariant.ERROR
+            )
+            return False
+        if self.is_dirty and not self.confirm_discard_changes("duplicate_open"):
+            return False
+        self._related_return_id = current
+        self._related_document_id = candidate_id
+        ids = list(self.queue_model.document_ids)
+        if candidate_id not in ids:
+            ids.append(candidate_id)
+            self.queue_model.refresh(ids, keep_current_if_missing=True)
+        self.queue_model.set_current_by_id(candidate_id)
+        self.header.set_related_navigation(True)
+        return True
+
+    def _return_from_related_document(self) -> None:
+        return_id = self._related_return_id
+        if return_id is None or not self.confirm_discard_changes("duplicate_return"):
+            return
+        self._related_return_id = None
+        self._related_document_id = None
+        ids = [value for value in self._origin_queue_ids if self._provider(value) is not None]
+        if return_id not in ids:
+            ids.append(return_id)
+        self.queue_model.refresh(ids, keep_current_if_missing=True)
+        self.queue_model.set_current_by_id(return_id)
+        self.header.set_related_navigation(False)
+
+    def _confirm_destructive(
+        self, action: str, document: Document, candidate: Document | None
+    ) -> bool:
+        if self._destructive_confirmation is not None:
+            return bool(self._destructive_confirmation(action, document, candidate))
+        identity = document.file_name or document.drive_file_id
+        if action == "duplicate":
+            candidate_name = candidate.file_name if candidate is not None else "—"
+            title = "אישור כפילות"
+            explanation = (
+                f"המסמך הנוכחי '{identity}' יסומן כלא רלוונטי. "
+                f"המסמך הקיים '{candidate_name}' יישאר ללא שינוי."
+            )
+            primary = "אשר כפילות וסמן כלא רלוונטי"
+        else:
+            title = "סימון מסמך כלא רלוונטי"
+            explanation = f"המסמך הנוכחי '{identity}' יסומן כלא רלוונטי."
+            primary = "סמן כלא רלוונטי"
+        dialog = ConfirmationDialog(
+            title=title,
+            explanation=explanation,
+            consequence=(
+                "מזהה ה-Drive יוחרג מסריקות Panda עתידיות וה-PDF המקומי "
+                "יימחק כאשר הוא קיים בנתיב המאושר. המסמך המקורי ב-Google Drive "
+                "לא יימחק. הפעולה סופית בתהליך הנוכחי ואין אפשרות שחזור."
+            ),
+            primary_action=primary,
+            destructive=True,
+            cancel_text="ביטול",
+            parent=self,
+        )
+        dialog.cancel_button.setFocus()
+        return dialog.exec() == QDialog.DialogCode.Accepted
+
+    def _show_destructive_failure(
+        self, reason_code: str | None, partial_failure: bool
+    ) -> None:
+        messages = {
+            "unsafe_local_path": "נתיב ה-PDF המקומי אינו בטוח ולכן לא בוצע שינוי.",
+            "exclusion_registry_failed": "לא ניתן לעדכן את רשימת ההחרגות. לא בוצעה מחיקה.",
+            "local_pdf_deletion_failed": "מחיקת ה-PDF המקומי נכשלה. המסמך לא סומן כלא רלוונטי.",
+            "document_persistence_failed": "שמירת מצב המסמך נכשלה.",
+            "candidate_missing": "הרשומה התואמת אינה זמינה.",
+            "duplicate_persistence_failed": "שמירת פתרון הכפילות נכשלה.",
+            "stale_document": "המסמך השתנה ברקע. יש לרענן לפני ביצוע הפעולה.",
+            "status_not_eligible": "מצב המסמך הנוכחי אינו מאפשר את הפעולה.",
+        }
+        message = messages.get(reason_code, "לא ניתן להשלים את הפעולה.")
+        if partial_failure:
+            message += " חלק מהפעולות כבר בוצעו; יש לבדוק את פרטי המסמך לפני ניסיון נוסף."
+        self.review_panel.show_feedback(message, FeedbackVariant.ERROR)
+
+    def _notify_document_change(self, signal: Signal, document_id: str) -> None:
+        signal.emit(document_id)
+        if self._document_change_notifier is not None:
+            self._document_change_notifier(document_id)
+
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Escape:
             self.return_to_queue()
@@ -365,8 +591,23 @@ class WorkspaceView(QWidget):
             can_next=self.queue_model.can_go_next,
         )
         self.header.set_dirty(False, editable=editable)
+        self.header.set_related_navigation(self._related_return_id is not None)
         self.review_panel.clear_feedback()
-        self.review_panel.set_presentation(presentation, draft=draft, editable=editable)
+        comparisons = (
+            self._duplicate_comparison_service.compare_all(document.drive_file_id)
+            if presentation.is_duplicate_suspected
+            and self._duplicate_comparison_service is not None
+            else ()
+        )
+        self.review_panel.set_presentation(
+            presentation,
+            draft=draft,
+            editable=editable,
+            duplicate_comparisons=comparisons,
+            can_mark_irrelevant=(
+                self._irrelevant_service is not None and can_mark_irrelevant(document)
+            ),
+        )
         self.source_preview.load_presentation(presentation)
         self._refresh_action_state()
 
@@ -467,6 +708,13 @@ class WorkspaceView(QWidget):
             can_next=self.queue_model.can_go_next,
         )
         self.header.set_dirty(self.is_dirty, editable=self._editable)
+
+    def _current_document(self) -> Document | None:
+        return (
+            self._provider(self.current_document_id)
+            if self.current_document_id is not None
+            else None
+        )
 
     @staticmethod
     def _message_for_reasons(reason_codes: Iterable[str]) -> str:

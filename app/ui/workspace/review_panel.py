@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.application.duplicate_comparison_service import DuplicateComparison
 from app.domain.review_draft import ReviewDraft
 from app.ui.components import (
     AuxiliaryBadgeVariant,
@@ -26,6 +27,7 @@ from app.ui.components import (
 from app.ui.theme.tokens import LAYOUT, SPACING
 from app.ui.theme.typography import TypographyRole, apply_typography
 from app.ui.workspace.field_display import FieldDisplay
+from app.ui.workspace.duplicate_comparison import DuplicateComparisonPanel
 from app.ui.workspace.presentation import WorkspaceDocumentPresentation
 
 
@@ -33,6 +35,10 @@ class ReviewPanel(QFrame):
     fieldChanged = Signal(str, str)
     saveRequested = Signal()
     approveRequested = Signal()
+    irrelevantRequested = Signal()
+    duplicateDismissRequested = Signal()
+    duplicateConfirmRequested = Signal(str)
+    openDuplicateCandidateRequested = Signal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -76,11 +82,17 @@ class ReviewPanel(QFrame):
         self.save_button.setEnabled(False)
         self.save_button.setToolTip("Workspace זה הוא לקריאה בלבד")
         self.feedback: InlineFeedback | None = None
+        self.duplicate_panel: DuplicateComparisonPanel | None = None
         self.action_layout = action_layout
         self.approve_button.clicked.connect(self.approveRequested)
         self.save_button.clicked.connect(self.saveRequested)
+        self.irrelevant_button = PandaButton(
+            "סמן כלא רלוונטי", variant=ButtonVariant.DESTRUCTIVE
+        )
+        self.irrelevant_button.clicked.connect(self.irrelevantRequested)
         action_layout.addWidget(self.approve_button)
         action_layout.addWidget(self.save_button)
+        action_layout.addWidget(self.irrelevant_button)
         root.addWidget(actions)
 
     def set_presentation(
@@ -89,6 +101,8 @@ class ReviewPanel(QFrame):
         *,
         draft: ReviewDraft | None = None,
         editable: bool = False,
+        duplicate_comparisons: tuple[DuplicateComparison, ...] = (),
+        can_mark_irrelevant: bool = False,
     ) -> None:
         while self.context_layout.count():
             item = self.context_layout.takeAt(0)
@@ -99,6 +113,7 @@ class ReviewPanel(QFrame):
             widget.deleteLater()
         self.field_widgets = []
         self.field_editors = {}
+        self.duplicate_panel = None
 
         badges = QWidget()
         badge_layout = QHBoxLayout(badges)
@@ -113,19 +128,13 @@ class ReviewPanel(QFrame):
         self.context_layout.addWidget(badges)
 
         if presentation.is_duplicate_suspected:
-            warning = QLabel(
-                "חשד לכפילות"
-                + (
-                    f" · {presentation.duplicate_candidate_count} מועמדים אפשריים"
-                    if presentation.duplicate_candidate_count
-                    else ""
-                )
+            self.duplicate_panel = DuplicateComparisonPanel(duplicate_comparisons)
+            self.duplicate_panel.openCandidateRequested.connect(
+                self.openDuplicateCandidateRequested
             )
-            warning.setProperty("pandaComponent", "workspaceDuplicateNotice")
-            warning.setWordWrap(True)
-            warning.setToolTip("פתרון כפילויות יתווסף בשלב מאוחר יותר")
-            apply_typography(warning, TypographyRole.COMPACT_BODY)
-            self.context_layout.addWidget(warning)
+            self.duplicate_panel.dismissRequested.connect(self.duplicateDismissRequested)
+            self.duplicate_panel.confirmRequested.connect(self.duplicateConfirmRequested)
+            self.context_layout.addWidget(self.duplicate_panel)
         if presentation.attention_text:
             attention = QLabel(presentation.attention_text)
             attention.setProperty("pandaComponent", "workspaceAttention")
@@ -160,6 +169,13 @@ class ReviewPanel(QFrame):
 
         self.save_button.setVisible(editable)
         self.approve_button.setVisible(editable)
+        self.irrelevant_button.setVisible(can_mark_irrelevant)
+        self.irrelevant_button.setEnabled(can_mark_irrelevant)
+        self.irrelevant_button.setToolTip(
+            "סימון מסמך כלא רלוונטי והסרת עותק ה-PDF המקומי"
+            if can_mark_irrelevant
+            else "הפעולה אינה זמינה במצב הנוכחי"
+        )
         if not editable:
             self.save_button.setEnabled(False)
             self.approve_button.setEnabled(False)

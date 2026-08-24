@@ -455,6 +455,15 @@ QLabel[pandaComponent="workspaceDuplicateNotice"] {{
     border-radius: {r.control}px;
 }}
 QLabel[pandaComponent="workspaceDuplicateNotice"] {{ color: {c.duplicate}; padding: 8px; }}
+QFrame[pandaComponent="workspaceDuplicatePanel"] {{
+    background: {c.duplicate_tint}; border: {b.hairline}px solid {c.border_secondary};
+    border-radius: {r.control}px;
+}}
+QFrame[pandaComponent="workspaceDuplicateDetails"] {{
+    background: {c.surface}; border: {b.hairline}px solid {c.border_secondary};
+    border-radius: {r.control}px;
+}}
+QLabel[duplicateMatch="true"] {{ color: {c.duplicate}; font-weight: 600; }}
 QFrame[pandaComponent="workspaceReadOnlyActions"] {{
     background: {c.surface_secondary}; border: none;
     border-top: {b.hairline}px solid {c.border_primary};

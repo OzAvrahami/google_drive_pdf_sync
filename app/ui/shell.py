@@ -21,6 +21,9 @@ from PySide6.QtWidgets import (
 from app.application.task_manager import TaskManager, TaskType
 from app.application.approval_service import ApprovalService
 from app.application.document_review_service import DocumentReviewService
+from app.application.duplicate_comparison_service import DuplicateComparisonService
+from app.application.duplicate_resolution_service import DuplicateResolutionService
+from app.application.irrelevant_service import IrrelevantService
 from app.application.workspace_approval_service import WorkspaceApprovalService
 from app.models.document import Document
 from app.ui.components import ButtonVariant, NavigationRail, PandaButton
@@ -61,6 +64,9 @@ class PandaMainWindow(QMainWindow):
         document_review_service: DocumentReviewService | None = None,
         approval_service: ApprovalService | None = None,
         workspace_approval_service: WorkspaceApprovalService | None = None,
+        irrelevant_service: IrrelevantService | None = None,
+        duplicate_comparison_service: DuplicateComparisonService | None = None,
+        duplicate_resolution_service: DuplicateResolutionService | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -102,6 +108,21 @@ class PandaMainWindow(QMainWindow):
                 document_source,
                 self.document_review_service,
                 self.approval_service,
+            )
+        self.irrelevant_service = irrelevant_service
+        if self.irrelevant_service is None and repository_capable:
+            self.irrelevant_service = IrrelevantService(document_source)
+        self.duplicate_comparison_service = duplicate_comparison_service
+        if self.duplicate_comparison_service is None and repository_capable:
+            self.duplicate_comparison_service = DuplicateComparisonService(document_source)
+        self.duplicate_resolution_service = duplicate_resolution_service
+        if (
+            self.duplicate_resolution_service is None
+            and repository_capable
+            and self.irrelevant_service is not None
+        ):
+            self.duplicate_resolution_service = DuplicateResolutionService(
+                document_source, self.irrelevant_service
             )
         self.task_model = TaskListModel(self.task_manager, self)
         self.document_model = DocumentTableModel(parent=self)
@@ -223,6 +244,10 @@ class PandaMainWindow(QMainWindow):
                 if self.workspace_approval_service is not None
                 else None
             ),
+            duplicate_comparison_service=self.duplicate_comparison_service,
+            duplicate_resolution_service=self.duplicate_resolution_service,
+            irrelevant_service=self.irrelevant_service,
+            document_change_notifier=self.refresh_document,
         )
         self.workspace.backRequested.connect(self._return_from_workspace)
         self.workspace.documentSaved.connect(self.refresh_document)

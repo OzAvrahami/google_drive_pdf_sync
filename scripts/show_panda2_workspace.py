@@ -24,11 +24,13 @@ from PySide6.QtWidgets import QApplication
 
 from app.application.approval_service import ApprovalService
 from app.application.document_review_service import DocumentReviewService
+from app.application.irrelevant_service import IrrelevantService
 from app.application.workspace_approval_service import WorkspaceApprovalService
 from app.models.document import Document
 from app.ui.routes import AppRoute
 from app.ui.shell import PandaMainWindow
 from app.ui.theme.typography import register_bundled_fonts
+import app.services.exclusion_service as exclusion_service
 
 
 def _window_size(value: str) -> tuple[int, int]:
@@ -51,6 +53,13 @@ def _args() -> argparse.Namespace:
             "clear",
             "missing",
             "duplicate",
+            "duplicate-high",
+            "duplicate-multiple",
+            "duplicate-missing-candidate",
+            "irrelevant",
+            "unsafe-deletion",
+            "deletion-failure",
+            "dirty-destructive",
             "failed",
             "corrected",
             "learning-warning",
@@ -59,7 +68,9 @@ def _args() -> argparse.Namespace:
         default="normal",
     )
     parser.add_argument(
-        "--auto-action", choices=("none", "save", "approve"), default="none"
+        "--auto-action",
+        choices=("none", "save", "approve", "dismiss-duplicate", "confirm-duplicate", "irrelevant"),
+        default="none",
     )
     parser.add_argument("--size", type=_window_size, default=(1440, 900))
     parser.add_argument("--snapshot", type=Path)
@@ -150,6 +161,50 @@ class _SyntheticSource:
                 duplicate_confidence="exact",
             ),
             Document(
+                drive_file_id="duplicate-high",
+                file_name="duplicate_high_confidence.pdf",
+                folder_path="Drive / 2026",
+                status="processed",
+                confidence=0.78,
+                supplier_name="ספק הדגמה בע״מ",
+                invoice_number=None,
+                invoice_date="24/08/2026",
+                total=1170,
+                local_path=str(pdf),
+                raw_text_path=str(raw),
+                is_duplicate_suspected=True,
+                suspected_duplicate_of=["normal"],
+                duplicate_confidence="high",
+            ),
+            Document(
+                drive_file_id="duplicate-multiple",
+                file_name="duplicate_multiple_candidates.pdf",
+                folder_path="Drive / 2026",
+                status="processed",
+                supplier_name="ספק הדגמה בע״מ",
+                invoice_number="INV-DEMO-2026",
+                invoice_date="24/08/2026",
+                total=1170,
+                local_path=str(pdf),
+                is_duplicate_suspected=True,
+                suspected_duplicate_of=["normal", "corrected"],
+                duplicate_confidence="exact",
+            ),
+            Document(
+                drive_file_id="duplicate-missing",
+                file_name="duplicate_missing_candidate.pdf",
+                folder_path="Drive / 2026",
+                status="processed",
+                supplier_name="ספק חסר לדוגמה",
+                invoice_number="MISSING-1",
+                invoice_date="24/08/2026",
+                total=50,
+                local_path=str(pdf),
+                is_duplicate_suspected=True,
+                suspected_duplicate_of=["record-no-longer-present"],
+                duplicate_confidence="exact",
+            ),
+            Document(
                 drive_file_id="failed",
                 file_name="malformed_source.pdf",
                 folder_path="Drive / failures",
@@ -203,7 +258,10 @@ def main() -> int:
     app.setApplicationName("Panda 2.0 Workspace Editing Gallery")
     register_bundled_fonts()
     temporary = tempfile.TemporaryDirectory(prefix="panda2-workspace-")
-    source = _SyntheticSource(Path(temporary.name))
+    temporary_root = Path(temporary.name)
+    source = _SyntheticSource(temporary_root)
+    original_registry = exclusion_service.EXCLUDED_FILES_JSON
+    exclusion_service.EXCLUDED_FILES_JSON = temporary_root / "excluded_files.json"
     def learning_recorder(**_kwargs):
         if args.scenario == "learning-warning":
             raise RuntimeError("synthetic learning warning")
@@ -216,12 +274,25 @@ def main() -> int:
     combined_service = WorkspaceApprovalService(
         source, review_service, approval_service
     )
+    def failing_delete(**_kwargs):
+        raise exclusion_service.LocalPdfDeletionError("synthetic deletion failure")
+
+    irrelevant_service = IrrelevantService(
+        source,
+        downloads_root=temporary_root,
+        pdf_delete=(
+            failing_delete
+            if args.scenario == "deletion-failure"
+            else exclusion_service.delete_local_pdf_safely
+        ),
+    )
     window = PandaMainWindow(
         source,
         operational_enabled=False,
         document_review_service=review_service,
         approval_service=approval_service,
         workspace_approval_service=combined_service,
+        irrelevant_service=irrelevant_service,
     )
     window.resize(*args.size)
     ordered = tuple(document.drive_file_id for document in source.documents)
@@ -229,10 +300,22 @@ def main() -> int:
         "corrected": "corrected",
         "missing": "missing",
         "duplicate": "duplicate",
+        "duplicate-high": "duplicate-high",
+        "duplicate-multiple": "duplicate-multiple",
+        "duplicate-missing-candidate": "duplicate-missing",
+        "deletion-failure": "duplicate",
         "failed": "failed",
         "approved": "approved",
     }.get(args.scenario, "normal")
+    if args.scenario == "unsafe-deletion":
+        source.documents[0].local_path = str(temporary_root.parent / "outside.pdf")
+        scenario_document = "normal"
+        window.refresh()
     window.open_workspace(scenario_document, ordered, AppRoute.ATTENTION.value)
+    if args.scenario.startswith("duplicate") or args.scenario == "deletion-failure":
+        duplicate_panel = window.workspace.review_panel.duplicate_panel
+        if duplicate_panel is not None:
+            duplicate_panel.toggle_expanded()
     editor = window.workspace.review_panel.field_editors
     if args.scenario == "dirty":
         editor["description"].editor.setText("שינוי סינתטי שלא נשמר")
@@ -244,14 +327,20 @@ def main() -> int:
         editor["supplier_name"].editor.clear()
     elif args.scenario == "learning-warning":
         editor["supplier_name"].editor.setText("ספק סינתטי מתוקן")
+    elif args.scenario == "dirty-destructive":
+        editor["description"].editor.setText("טיוטה מלוכלכת לפני פעולה הרסנית")
     window.show()
 
     if args.auto_action != "none":
-        action = (
-            window.workspace.save_current_draft
-            if args.auto_action == "save"
-            else window.workspace.approve_current_draft
-        )
+        actions = {
+            "save": window.workspace.save_current_draft,
+            "approve": window.workspace.approve_current_draft,
+            "dismiss-duplicate": window.workspace.dismiss_current_duplicate,
+            "confirm-duplicate": lambda: window.workspace.confirm_current_duplicate("normal"),
+            "irrelevant": window.workspace.mark_current_irrelevant,
+        }
+        action = actions[args.auto_action]
+        window.workspace._destructive_confirmation = lambda *_args: True
         QTimer.singleShot(250, action)
 
     if args.snapshot:
@@ -268,6 +357,7 @@ def main() -> int:
     window.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     app.processEvents()
+    exclusion_service.EXCLUDED_FILES_JSON = original_registry
     temporary.cleanup()
     return result
 

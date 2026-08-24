@@ -1,6 +1,7 @@
 """Read-only Panda 2.0 Document Workspace components."""
 
 from app.ui.workspace.field_display import FieldDisplay
+from app.ui.workspace.duplicate_comparison import DuplicateComparisonPanel
 from app.ui.workspace.presentation import (
     WorkspaceDocumentPresentation,
     WorkspaceField,
@@ -14,6 +15,7 @@ from app.ui.workspace.workspace_view import WorkspaceView
 
 __all__ = [
     "FieldDisplay",
+    "DuplicateComparisonPanel",
     "QueueRail",
     "ReviewPanel",
     "WorkspaceDocumentPresentation",

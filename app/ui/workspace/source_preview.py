@@ -6,7 +6,7 @@ from collections.abc import Callable
 from enum import Enum
 from pathlib import Path
 
-from PySide6.QtCore import QPointF, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QEvent, QPointF, Qt, Signal
 from PySide6.QtGui import QResizeEvent
 from PySide6.QtPdf import QPdfDocument
 from PySide6.QtPdfWidgets import QPdfView
@@ -230,6 +230,10 @@ class SourcePreview(QFrame):
         if previous is not None:
             previous.close()
             previous.deleteLater()
+            # Destructive Workspace actions may safely delete the just-viewed
+            # cached PDF immediately after release. Flush only this deferred
+            # document deletion so Windows no longer retains its file handle.
+            QCoreApplication.sendPostedEvents(previous, QEvent.Type.DeferredDelete)
         self._update_controls()
 
     def previous_page(self) -> None:

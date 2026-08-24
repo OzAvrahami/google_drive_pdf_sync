@@ -26,9 +26,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_VALID_COMPARISON_STATUSES = frozenset({
+VALID_DUPLICATE_COMPARISON_STATUSES = frozenset({
     "processed", "needs_review", "approved", "exported"
 })
+# Backwards-compatible private name retained for existing imports/tests.
+_VALID_COMPARISON_STATUSES = VALID_DUPLICATE_COMPARISON_STATUSES
 
 
 def detect_and_mark_duplicate(doc: "Document", store: "DocumentStore") -> None:
@@ -42,9 +44,9 @@ def detect_and_mark_duplicate(doc: "Document", store: "DocumentStore") -> None:
     if not supplier or not supplier.strip():
         return
 
-    norm_supplier = _normalize(supplier)
-    norm_number   = _normalize_invoice_number(doc.effective("invoice_number"))
-    norm_date     = _normalize_date(doc.effective("invoice_date"))
+    norm_supplier = normalize_duplicate_supplier(supplier)
+    norm_number   = normalize_duplicate_invoice_number(doc.effective("invoice_number"))
+    norm_date     = normalize_duplicate_date(doc.effective("invoice_date"))
     amount        = doc.effective("total")
 
     candidates = [
@@ -57,14 +59,16 @@ def detect_and_mark_duplicate(doc: "Document", store: "DocumentStore") -> None:
         existing_supplier = existing.effective("supplier_name")
         if not existing_supplier:
             continue
-        if _normalize(existing_supplier) != norm_supplier:
+        if normalize_duplicate_supplier(existing_supplier) != norm_supplier:
             continue
 
         # EXACT: supplier + invoice_number + date
         if norm_number:
-            existing_number = _normalize_invoice_number(existing.effective("invoice_number"))
+            existing_number = normalize_duplicate_invoice_number(
+                existing.effective("invoice_number")
+            )
             if existing_number and existing_number == norm_number:
-                existing_date = _normalize_date(existing.effective("invoice_date"))
+                existing_date = normalize_duplicate_date(existing.effective("invoice_date"))
                 # If both dates are available they must match
                 if norm_date and existing_date and norm_date != existing_date:
                     continue
@@ -79,7 +83,7 @@ def detect_and_mark_duplicate(doc: "Document", store: "DocumentStore") -> None:
 
         # HIGH: supplier + date + amount (only when invoice_number is absent)
         if not norm_number and norm_date and amount is not None:
-            existing_date   = _normalize_date(existing.effective("invoice_date"))
+            existing_date   = normalize_duplicate_date(existing.effective("invoice_date"))
             existing_amount = existing.effective("total")
             if (existing_date and existing_date == norm_date
                     and existing_amount is not None
@@ -96,14 +100,14 @@ def detect_and_mark_duplicate(doc: "Document", store: "DocumentStore") -> None:
 
 # ── Normalization helpers ───────────────────────────────────────────────────────
 
-def _normalize(value) -> str:
+def normalize_duplicate_supplier(value) -> str:
     """Collapse whitespace for consistent comparison."""
     if not value:
         return ""
     return " ".join(str(value).strip().split())
 
 
-def _normalize_invoice_number(value) -> str:
+def normalize_duplicate_invoice_number(value) -> str:
     """Strip delimiters and uppercase for robust invoice number comparison."""
     if not value:
         return ""
@@ -112,7 +116,7 @@ def _normalize_invoice_number(value) -> str:
     return s.upper()
 
 
-def _normalize_date(date_str) -> str:
+def normalize_duplicate_date(date_str) -> str:
     """Convert DD/MM/YYYY to YYYY-MM-DD for reliable comparison."""
     if not date_str:
         return ""
@@ -121,3 +125,9 @@ def _normalize_date(date_str) -> str:
         day, month, year = m.groups()
         return f"{year}-{month}-{day}"
     return ""
+
+
+# Compatibility aliases for characterization tests or older internal callers.
+_normalize = normalize_duplicate_supplier
+_normalize_invoice_number = normalize_duplicate_invoice_number
+_normalize_date = normalize_duplicate_date
