@@ -40,6 +40,11 @@ class WorkspaceHeader(QFrame):
         identity_layout.addWidget(self.file_name)
         identity_layout.addWidget(self.context)
         root.addWidget(identity, 1)
+        self.dirty_indicator = QLabel("שינויים שלא נשמרו")
+        self.dirty_indicator.setProperty("pandaComponent", "workspaceDirtyIndicator")
+        self.dirty_indicator.setVisible(False)
+        apply_typography(self.dirty_indicator, TypographyRole.HELPER)
+        root.addWidget(self.dirty_indicator)
         self.status_badge = StatusBadge("new")
         root.addWidget(self.status_badge)
         self.confidence = QLabel("—")
@@ -85,3 +90,5 @@ class WorkspaceHeader(QFrame):
         self.previous_button.setEnabled(can_previous)
         self.next_button.setEnabled(can_next)
 
+    def set_dirty(self, dirty: bool, *, editable: bool) -> None:
+        self.dirty_indicator.setVisible(bool(dirty and editable))

@@ -55,6 +55,7 @@ class ReviewDraft:
         source_document_id: str,
         source_record_id: str,
         source_status: str,
+        source_updated_at: str = "",
         file_name: str,
         extracted_values: Mapping[str, Any],
         persisted_corrected_values: Mapping[str, Any],
@@ -65,6 +66,7 @@ class ReviewDraft:
         self.source_document_id = source_document_id
         self.source_record_id = source_record_id
         self.source_status = source_status
+        self.source_updated_at = source_updated_at
         self.file_name = file_name
         self._extracted_values = dict(extracted_values)
         self._persisted_corrected_values = dict(persisted_corrected_values)
@@ -95,6 +97,7 @@ class ReviewDraft:
             source_document_id=document.drive_file_id,
             source_record_id=document.id,
             source_status=document.status,
+            source_updated_at=document.updated_at,
             file_name=document.file_name,
             extracted_values=extracted,
             persisted_corrected_values=corrected,
@@ -156,7 +159,7 @@ class ReviewDraft:
         self._require_field(field_name)
         displayed = _display_value(value)
         self._values[field_name] = displayed
-        if not displayed and self._baseline_values[field_name]:
+        if not displayed.strip() and self._baseline_values[field_name].strip():
             self._explicitly_cleared.add(field_name)
         else:
             self._explicitly_cleared.discard(field_name)

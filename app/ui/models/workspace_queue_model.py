@@ -74,7 +74,7 @@ class WorkspaceQueueModel(QAbstractListModel):
     @property
     def can_go_next(self) -> bool:
         index = self.current_index
-        return 0 <= index < len(self._document_ids) - 1
+        return bool(self._document_ids) if index < 0 else index < len(self._document_ids) - 1
 
     def set_document_ids(self, document_ids: Iterable[str], preserve_current: bool = True) -> None:
         ids = list(dict.fromkeys(str(document_id) for document_id in document_ids))
@@ -90,8 +90,22 @@ class WorkspaceQueueModel(QAbstractListModel):
         if self._current_id != old_id or self.current_index != old_index:
             self._emit_current()
 
-    def refresh(self, document_ids: Iterable[str]) -> None:
-        self.set_document_ids(document_ids, preserve_current=True)
+    def refresh(
+        self,
+        document_ids: Iterable[str],
+        *,
+        keep_current_if_missing: bool = False,
+    ) -> None:
+        ids = list(dict.fromkeys(str(document_id) for document_id in document_ids))
+        old_id = self._current_id
+        self.beginResetModel()
+        self._document_ids = ids
+        if old_id in ids or (keep_current_if_missing and old_id is not None):
+            self._current_id = old_id
+        else:
+            self._current_id = ids[0] if ids else None
+        self.endResetModel()
+        self._emit_current()
 
     def start_session(self, document_ids: Iterable[str], current_document_id: str) -> None:
         """Atomically establish one visible queue and its requested stable ID."""
@@ -136,7 +150,11 @@ class WorkspaceQueueModel(QAbstractListModel):
     def next(self) -> str | None:
         if not self.can_go_next:
             return self._current_id
-        document_id = self._document_ids[self.current_index + 1]
+        document_id = (
+            self._document_ids[0]
+            if self.current_index < 0
+            else self._document_ids[self.current_index + 1]
+        )
         self.set_current_by_id(document_id)
         return document_id
 

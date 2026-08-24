@@ -48,6 +48,7 @@ _STATUS_ACTIONS: dict[str, frozenset[WorkflowAction]] = {
     "processed": frozenset(
         {
             WorkflowAction.REVIEW_EDIT,
+            WorkflowAction.SAVE_CORRECTIONS,
             WorkflowAction.APPROVE,
             WorkflowAction.RETRY,
             WorkflowAction.RESOLVE_DUPLICATE,

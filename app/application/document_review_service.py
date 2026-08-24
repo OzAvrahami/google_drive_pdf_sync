@@ -119,6 +119,11 @@ class DocumentReviewService:
         validation = self.validate_draft(draft)
         reasons: list[str] = []
 
+        if document.status != draft.source_status:
+            reasons.append("stale_document_status")
+        if draft.source_updated_at and document.updated_at != draft.source_updated_at:
+            reasons.append("stale_document_updated")
+
         if not can_review_edit(document):
             reasons.append("review_not_allowed")
 

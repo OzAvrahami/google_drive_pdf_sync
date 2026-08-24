@@ -25,6 +25,7 @@ EXPECTED_ACTIONS = {
     "new": {"process", "open_source", "mark_irrelevant"},
     "processed": {
         "review_edit",
+        "save_corrections",
         "approve",
         "retry",
         "resolve_duplicate",

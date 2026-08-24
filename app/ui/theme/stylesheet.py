@@ -150,12 +150,16 @@ QLineEdit[pandaComponent="textField"][validationState="low_confidence"] {{
 QLineEdit[pandaComponent="textField"][validationState="corrected"] {{
     border-color: {c.brand}; background: {c.brand_tint};
 }}
+QLineEdit[pandaComponent="textField"][validationState="changed"] {{
+    border-color: {c.brand}; background: {c.brand_tint};
+}}
 QLineEdit[pandaComponent="textField"]:read-only,
 QLineEdit[pandaComponent="textField"][validationState="disabled"] {{
     color: {c.text_muted}; background: {c.surface_secondary}; border-color: {c.border_secondary};
 }}
 QFrame[pandaComponent="fieldEditor"] {{ background: transparent; border: none; }}
 QLabel[pandaComponent="fieldStateLabel"][validationState="corrected"] {{ color: {c.brand_hover}; }}
+QLabel[pandaComponent="fieldStateLabel"][validationState="changed"] {{ color: {c.brand_hover}; }}
 QLabel[pandaComponent="fieldStateLabel"][validationState="low_confidence"],
 QLabel[pandaComponent="fieldStateLabel"][validationState="missing"] {{ color: {c.warning}; }}
 QLabel[pandaComponent="fieldStateLabel"][validationState="invalid"] {{ color: {c.error}; }}
@@ -389,6 +393,11 @@ QWidget[pandaComponent="workspaceView"] {{
 QFrame[pandaComponent="workspaceHeader"] {{
     background: {c.surface}; border: none;
     border-bottom: {b.hairline}px solid {c.border_primary};
+}}
+QLabel[pandaComponent="workspaceDirtyIndicator"] {{
+    color: {c.warning}; background: {c.warning_tint};
+    border: {b.hairline}px solid {c.warning}; border-radius: {r.chip}px;
+    padding: 3px 7px;
 }}
 QFrame[pandaComponent="workspaceQueueRail"] {{
     background: {c.surface_secondary}; border: none;

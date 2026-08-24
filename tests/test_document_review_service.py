@@ -88,6 +88,21 @@ def test_no_op_save_performs_no_write_and_no_learning() -> None:
     assert learning_calls == []
 
 
+def test_stale_updated_document_blocks_save_without_overwrite() -> None:
+    document = _document()
+    repository = MemoryRepository(document)
+    service = DocumentReviewService(repository, learning_recorder=lambda **_: None)
+    draft = service.load_draft("drive-1")
+    draft.set_value("description", "Local draft")
+    document.touch()
+
+    result = service.save_draft(draft)
+
+    assert result.saved is False
+    assert "stale_document_updated" in result.plan.reason_codes
+    assert repository.upsert_calls == []
+
+
 def test_no_op_save_does_not_normalise_legacy_manual_flag() -> None:
     document = _document(
         corrected_data={"supplier_name": "Prior Correction"},

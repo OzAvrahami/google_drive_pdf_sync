@@ -19,6 +19,7 @@ from app.ui.theme.typography import TypographyRole, apply_typography
 class FieldPresentationState(str, Enum):
     NORMAL = "normal"
     CORRECTED = "corrected"
+    CHANGED = "changed"
     LOW_CONFIDENCE = "low_confidence"
     MISSING = "missing"
     INVALID = "invalid"
@@ -88,6 +89,7 @@ class SearchField(PandaTextField):
 _STATE_LABELS = {
     FieldPresentationState.NORMAL: "",
     FieldPresentationState.CORRECTED: "תוקן",
+    FieldPresentationState.CHANGED: "שונה כעת",
     FieldPresentationState.LOW_CONFIDENCE: "ביטחון נמוך",
     FieldPresentationState.MISSING: "חסר",
     FieldPresentationState.INVALID: "לא תקין",
@@ -171,6 +173,13 @@ class FieldEditor(QFrame):
         if read_only:
             state = FieldPresentationState.DISABLED
         else:
-            raw_state = getattr(getattr(field, "presentation_state", None), "value", "normal")
-            state = FieldPresentationState(raw_state)
+            raw_state = getattr(
+                getattr(field, "presentation_state", None), "value", "normal"
+            )
+            if raw_state in {"invalid", "missing"}:
+                state = FieldPresentationState(raw_state)
+            elif bool(getattr(field, "changed_in_session", False)):
+                state = FieldPresentationState.CHANGED
+            else:
+                state = FieldPresentationState(raw_state)
         self.set_state(state)

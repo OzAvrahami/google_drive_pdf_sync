@@ -172,6 +172,19 @@ def test_field_editor_can_consume_review_provenance(qapp) -> None:
     assert field.state is FieldPresentationState.CORRECTED
 
 
+def test_field_editor_distinguishes_current_session_change(qapp) -> None:
+    field = FieldEditor("ספק")
+    review_field = SimpleNamespace(
+        displayed_value="ספק חדש",
+        presentation_state=FieldState.CORRECTED,
+        changed_in_session=True,
+    )
+
+    field.apply_review_field(review_field)
+
+    assert field.state is FieldPresentationState.CHANGED
+
+
 @pytest.mark.parametrize("variant", list(FeedbackVariant))
 def test_inline_feedback_exposes_semantic_variant(qapp, variant) -> None:
     feedback = InlineFeedback("הודעה", variant=variant)

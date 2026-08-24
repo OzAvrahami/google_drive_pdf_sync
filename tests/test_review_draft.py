@@ -102,6 +102,16 @@ def test_explicit_clear_of_populated_field_is_distinct_and_dirty() -> None:
     assert draft.is_dirty is True
 
 
+def test_whitespace_only_input_is_an_explicit_clear_not_a_persistable_value() -> None:
+    draft = ReviewDraft.from_document(_document())
+
+    draft.set_value("invoice_number", "   ")
+
+    assert draft.current_value("invoice_number") == "   "
+    assert draft.explicitly_cleared_fields == frozenset({"invoice_number"})
+    assert draft.is_dirty is True
+
+
 def test_reverting_explicit_clear_removes_clear_marker() -> None:
     draft = ReviewDraft.from_document(_document())
     draft.clear_field("invoice_number")

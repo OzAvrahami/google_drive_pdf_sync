@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QModelIndex, QSize, Qt
+from PySide6.QtCore import QModelIndex, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPalette
 from PySide6.QtWidgets import (
     QApplication,
@@ -94,6 +94,8 @@ class WorkspaceQueueDelegate(QStyledItemDelegate):
 
 
 class QueueRail(QFrame):
+    documentRequested = Signal(str)
+
     def __init__(
         self,
         model: WorkspaceQueueModel,
@@ -127,7 +129,7 @@ class QueueRail(QFrame):
     def _activate(self, index: QModelIndex) -> None:
         document_id = index.data(int(WorkspaceQueueRoles.DOCUMENT_ID))
         if document_id:
-            self.model.set_current_by_id(str(document_id))
+            self.documentRequested.emit(str(document_id))
 
     def _current_changed(self, document_id: object, index: int, total: int) -> None:
         self.heading.setText(f"תור הטיפול · {index + 1 if index >= 0 else 0}/{total}")
@@ -135,4 +137,3 @@ class QueueRail(QFrame):
             self.list_view.setCurrentIndex(self.model.index(index, 0))
             self.list_view.scrollTo(self.model.index(index, 0))
         self.list_view.viewport().update()
-
