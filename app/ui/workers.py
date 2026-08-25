@@ -172,7 +172,7 @@ class ExportWorker(QThread):
 
     def run(self) -> None:
         try:
-            from app.writers.excel_writer import export_documents
+            from app.application.export_service import ExportService
 
             self.progress.emit("אוסף מסמכים מאושרים…")
             docs = self._store.get_by_status("approved")
@@ -182,18 +182,19 @@ class ExportWorker(QThread):
                 return
 
             self.progress.emit(f"מייצא {len(docs)} מסמכים לאקסל…")
-            count = export_documents(docs, self._output_path)
-
-            # Mark exported documents
-            for doc in docs:
-                if doc.drive_file_id in {d.drive_file_id for d in docs}:
-                    doc.status           = "exported"
-                    doc.exported_to_excel = True
-            self._store.upsert_many(docs)
+            result = ExportService(self._store, self._output_path).export_selected(
+                [doc.drive_file_id for doc in docs]
+            )
 
             self.finished.emit({
-                "exported": count,
-                "path": self._output_path,
+                "exported": result.exported_count,
+                "written": len(result.written_ids),
+                "already_present": len(result.already_present_ids),
+                "ineligible": len(result.ineligible_ids),
+                "missing": len(result.missing_ids),
+                "partial": result.outcome.value == "partial",
+                "status_persistence_error": result.status_persistence_error,
+                "path": result.workbook_path,
             })
         except Exception as exc:
             logger.exception("ExportWorker error: %s", exc)
