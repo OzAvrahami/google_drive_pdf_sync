@@ -14,9 +14,11 @@ from app.ui.models.document_record import DocumentPresentationRecord
 from app.ui.models.queue_policy import route_for
 from app.ui.theme.direction import TextKind, direction_profile_for
 from app.ui.theme.tokens import CONTROLS
+from app.ui.theme.typography import TypographyRole, font_for
 
 
 class DocumentColumn(StrEnum):
+    SELECTION = "selection"
     DOCUMENT = "document"
     SOURCE = "source"
     SUPPLIER = "supplier"
@@ -29,6 +31,7 @@ class DocumentColumn(StrEnum):
 
 
 class ColumnSemantic(StrEnum):
+    SELECTION = "selection"
     DOCUMENT = "document"
     SOURCE = "source"
     PARTY = "party"
@@ -88,18 +91,29 @@ _STATUS_SORT_RANK = {
 
 
 def _empty(value: str | None) -> str:
-    return value or ""
+    return value or "—"
 
 
 def _format_amount(value: Decimal | None) -> str:
-    return "" if value is None else f"₪{value:,.2f}"
+    return "—" if value is None else f"₪{value:,.2f}"
 
 
 def _format_confidence(value: float | None) -> str:
-    return "" if value is None else f"{int(value * 100)}%"
+    return "—" if value is None else f"{int(value * 100)}%"
 
 
 COLUMN_SPECS: tuple[ColumnSpec, ...] = (
+    ColumnSpec(
+        DocumentColumn.SELECTION,
+        "",
+        lambda record: "",
+        lambda record: record.document_id.casefold(),
+        lambda record: record.document_id,
+        TextKind.AUTO,
+        True,
+        42,
+        ColumnSemantic.SELECTION,
+    ),
     ColumnSpec(
         DocumentColumn.DOCUMENT,
         "מסמך",
@@ -108,7 +122,7 @@ COLUMN_SPECS: tuple[ColumnSpec, ...] = (
         lambda record: record.file_name,
         TextKind.FILENAME,
         True,
-        230,
+        190,
         ColumnSemantic.DOCUMENT,
     ),
     ColumnSpec(
@@ -119,7 +133,7 @@ COLUMN_SPECS: tuple[ColumnSpec, ...] = (
         lambda record: record.folder_path,
         TextKind.PATH,
         False,
-        145,
+        110,
         ColumnSemantic.SOURCE,
     ),
     ColumnSpec(
@@ -130,7 +144,7 @@ COLUMN_SPECS: tuple[ColumnSpec, ...] = (
         lambda record: record.supplier_name,
         TextKind.HEBREW,
         False,
-        160,
+        120,
         ColumnSemantic.PARTY,
     ),
     ColumnSpec(
@@ -141,7 +155,7 @@ COLUMN_SPECS: tuple[ColumnSpec, ...] = (
         lambda record: record.document_number,
         TextKind.DOCUMENT_NUMBER,
         True,
-        120,
+        110,
         ColumnSemantic.IDENTIFIER,
     ),
     ColumnSpec(
@@ -152,7 +166,7 @@ COLUMN_SPECS: tuple[ColumnSpec, ...] = (
         lambda record: record.document_date,
         TextKind.DATE,
         True,
-        100,
+        90,
         ColumnSemantic.DATE,
     ),
     ColumnSpec(
@@ -163,7 +177,7 @@ COLUMN_SPECS: tuple[ColumnSpec, ...] = (
         lambda record: record.total,
         TextKind.AMOUNT,
         True,
-        110,
+        100,
         ColumnSemantic.MONEY,
     ),
     ColumnSpec(
@@ -174,7 +188,7 @@ COLUMN_SPECS: tuple[ColumnSpec, ...] = (
         lambda record: record.status,
         TextKind.HEBREW,
         True,
-        120,
+        105,
         ColumnSemantic.WORKFLOW,
     ),
     ColumnSpec(
@@ -185,7 +199,7 @@ COLUMN_SPECS: tuple[ColumnSpec, ...] = (
         lambda record: record.confidence,
         TextKind.PERCENTAGE,
         True,
-        86,
+        80,
         ColumnSemantic.CONFIDENCE,
     ),
     ColumnSpec(
@@ -196,7 +210,7 @@ COLUMN_SPECS: tuple[ColumnSpec, ...] = (
         lambda record: record.attention_reason.value,
         TextKind.HEBREW,
         True,
-        240,
+        190,
         ColumnSemantic.ATTENTION,
     ),
 )
@@ -248,6 +262,9 @@ class DocumentTableModel(QAbstractTableModel):
         if role == int(Qt.ItemDataRole.TextAlignmentRole):
             alignment = direction_profile_for(spec.text_kind).alignment | Qt.AlignmentFlag.AlignVCenter
             return int(alignment)
+        if role == int(Qt.ItemDataRole.FontRole):
+            technical = spec.text_kind not in {TextKind.AUTO, TextKind.HEBREW}
+            return font_for(TypographyRole.TECHNICAL if technical else TypographyRole.TABLE)
         if role == int(Qt.ItemDataRole.ToolTipRole):
             if spec.key is DocumentColumn.DOCUMENT:
                 return record.local_path or record.file_name

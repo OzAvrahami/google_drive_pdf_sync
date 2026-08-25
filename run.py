@@ -3,7 +3,7 @@ Entry point for the local accountant tool.
 
 Usage:
     python run.py             # legacy production UI
-    python run.py --panda2    # Panda 2.0 development shell
+    python run.py --panda2    # Panda 2.0 shell
 """
 import logging
 import sys

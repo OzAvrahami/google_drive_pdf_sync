@@ -27,12 +27,8 @@ from app.ui.theme.typography import TypographyRole, apply_typography
 from app.ui.workspace.presentation import build_workspace_presentation
 from app.ui.workspace.queue_rail import QueueRail
 from app.ui.workspace.review_panel import ReviewPanel
+from app.ui.workspace.source_preview import SourcePreview
 from app.ui.workspace.workspace_header import WorkspaceHeader
-
-try:
-    from app.ui.workspace.source_preview import SourcePreview
-except ModuleNotFoundError:  # H1 remains independently stageable before native PDF H2.
-    from app.ui.workspace.source_placeholder import SourcePlaceholder as SourcePreview
 
 
 DocumentProvider = Callable[[str], Document | None]
@@ -157,6 +153,9 @@ class WorkspaceView(QWidget):
         self.escape_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         self.escape_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         self.escape_shortcut.activated.connect(self.return_to_queue)
+        self.save_shortcut = QShortcut(QKeySequence.StandardKey.Save, self)
+        self.save_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.save_shortcut.activated.connect(self._save_from_shortcut)
 
     @property
     def current_document_id(self) -> str | None:
@@ -619,6 +618,10 @@ class WorkspaceView(QWidget):
         self.header.set_dirty(self._draft.is_dirty, editable=True)
         self.review_panel.clear_feedback()
         self._refresh_action_state()
+
+    def _save_from_shortcut(self) -> None:
+        if not self.review_panel.save_button.isHidden() and self.review_panel.save_button.isEnabled():
+            self.save_current_draft()
 
     def _refresh_action_state(self) -> None:
         if self._draft is None or self._review_service is None or not self._editable:

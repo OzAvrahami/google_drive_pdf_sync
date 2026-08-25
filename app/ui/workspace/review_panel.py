@@ -77,10 +77,10 @@ class ReviewPanel(QFrame):
         action_layout.setContentsMargins(14, 10, 14, 12)
         self.approve_button = PandaButton("אישור מסמך", variant=ButtonVariant.APPROVAL)
         self.approve_button.setEnabled(False)
-        self.approve_button.setToolTip("אישור ועריכה יחוברו בשלב ההגירה הבא")
+        self.approve_button.setToolTip("האישור אינו זמין במצב המסמך הנוכחי")
         self.save_button = PandaButton("שמירת תיקון", variant=ButtonVariant.GHOST)
         self.save_button.setEnabled(False)
-        self.save_button.setToolTip("Workspace זה הוא לקריאה בלבד")
+        self.save_button.setToolTip("השמירה אינה זמינה במצב המסמך הנוכחי")
         self.feedback: InlineFeedback | None = None
         self.duplicate_panel: DuplicateComparisonPanel | None = None
         self.action_layout = action_layout

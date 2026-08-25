@@ -1,4 +1,4 @@
-"""Stable document-ID selection helpers for future queue views."""
+"""Stable document-ID selection helpers shared by Panda queue views."""
 
 from __future__ import annotations
 

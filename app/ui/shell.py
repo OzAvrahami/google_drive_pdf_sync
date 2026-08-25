@@ -34,12 +34,13 @@ from app.ui.models.queue_policy import QueueRoute, calculate_queue_counts
 from app.ui.models.task_list_model import TaskListModel
 from app.ui.routes import AppRoute, ROUTES, RouteViewKind, route_definition
 from app.ui.theme import apply_panda_theme
+from app.ui.theme.icons import IconName
 from app.ui.theme.tokens import LAYOUT, SPACING
 from app.ui.theme.typography import TypographyRole, apply_typography
 from app.ui.tasks.task_center import TaskCenter
 from app.ui.tasks.export_tasks import ExportTaskController
 from app.ui.tasks.operational_tasks import OperationalTaskController
-from app.ui.views import DocumentQueueView, OverviewView, QueueRoutePlaceholder, ReadyView
+from app.ui.views import DocumentQueueView, OverviewView, ReadyView
 from app.ui.workspace import WorkspaceView
 
 
@@ -219,8 +220,12 @@ class PandaMainWindow(QMainWindow):
         header_layout.addWidget(title_block)
         header_layout.addStretch()
 
-        self.scan_button = PandaButton("סריקת Drive", variant=ButtonVariant.SECONDARY)
-        self.process_button = PandaButton("עיבוד מסמכים", variant=ButtonVariant.PRIMARY)
+        self.scan_button = PandaButton(
+            "סריקת Drive", variant=ButtonVariant.SECONDARY, icon_name=IconName.SCAN
+        )
+        self.process_button = PandaButton(
+            "עיבוד מסמכים", variant=ButtonVariant.PRIMARY, icon_name=IconName.PROCESS
+        )
         self.scan_button.clicked.connect(self._submit_scan)
         self.process_button.clicked.connect(self._submit_process)
         header_layout.addWidget(self.scan_button)
@@ -246,27 +251,28 @@ class PandaMainWindow(QMainWindow):
                 view.openDocumentRequested.connect(self.open_workspace)
                 if definition.queue_route is QueueRoute.INBOX:
                     self.inbox = view
-                else:
+                elif definition.queue_route is QueueRoute.ATTENTION:
                     self.attention = view
+                elif definition.queue_route is QueueRoute.IRRELEVANT:
+                    self.irrelevant = view
+                elif definition.queue_route is QueueRoute.HISTORY:
+                    self.history = view
             elif definition.view_kind is RouteViewKind.READY:
-                if self.approval_service is None:
-                    view = QueueRoutePlaceholder(definition)
-                else:
-                    view = ReadyView(
-                        self.document_model,
-                        self.approval_service,
-                        workbook_path=(
-                            self.export_service.output_path
-                            if self.export_service is not None
-                            else str(EXCEL_OUTPUT_PATH)
-                        ),
-                    )
-                    view.openDocumentRequested.connect(self.open_workspace)
-                    view.batchApproved.connect(self._on_ready_batch_approved)
-                    view.exportRequested.connect(self._submit_export)
-                    self.ready = view
+                view = ReadyView(
+                    self.document_model,
+                    self.approval_service,
+                    workbook_path=(
+                        self.export_service.output_path
+                        if self.export_service is not None
+                        else str(EXCEL_OUTPUT_PATH)
+                    ),
+                )
+                view.openDocumentRequested.connect(self.open_workspace)
+                view.batchApproved.connect(self._on_ready_batch_approved)
+                view.exportRequested.connect(self._submit_export)
+                self.ready = view
             else:
-                view = QueueRoutePlaceholder(definition)
+                raise AssertionError(f"Unhandled Panda route view: {definition.view_kind}")
             self._views[definition.route] = view
             self.stack.addWidget(view)
 
@@ -310,6 +316,7 @@ class PandaMainWindow(QMainWindow):
         self._current_route = destination
         self.mode_stack.setCurrentWidget(self.route_mode)
         self.stack.setCurrentWidget(self._views[destination])
+        self.header.setVisible(destination is AppRoute.OVERVIEW)
         self.navigation.set_active_route(destination)
         self.header_title.setText(definition.label_he)
         if destination is AppRoute.OVERVIEW:
@@ -482,6 +489,8 @@ class PandaMainWindow(QMainWindow):
                 button.setAccessibleDescription(_UNAVAILABLE_ACTION_REASON)
             if hasattr(self, "inbox") and self.inbox.process_button is not None:
                 self.inbox.process_button.setEnabled(False)
+            if hasattr(self, "inbox") and self.inbox.scan_button is not None:
+                self.inbox.scan_button.setEnabled(False)
             if hasattr(self, "inbox") and self.inbox.empty_state.action_button is not None:
                 self.inbox.empty_state.action_button.setEnabled(False)
             return
@@ -513,6 +522,12 @@ class PandaMainWindow(QMainWindow):
         if hasattr(self, "inbox") and self.inbox.empty_state.action_button is not None:
             self._set_action_state(
                 self.inbox.empty_state.action_button,
+                not scan_pending,
+                self.scan_button.toolTip(),
+            )
+        if hasattr(self, "inbox") and self.inbox.scan_button is not None:
+            self._set_action_state(
+                self.inbox.scan_button,
                 not scan_pending,
                 self.scan_button.toolTip(),
             )

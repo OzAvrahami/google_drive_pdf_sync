@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, Qt, Signal
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QColor, QKeySequence, QPainter, QPen, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -53,6 +54,101 @@ _STATUS_COLORS = {
     "skipped": (COLORS.irrelevant_tint, COLORS.irrelevant),
     "processed": (COLORS.irrelevant_tint, COLORS.processed),
     "approved": (COLORS.approval_tint, COLORS.approval),
+    "exported": (COLORS.brand_tint, COLORS.exported),
+    "confirmed_irrelevant": (COLORS.irrelevant_tint, COLORS.irrelevant),
+    "excluded": (COLORS.irrelevant_tint, COLORS.irrelevant),
+}
+
+
+@dataclass(frozen=True, slots=True)
+class QueueViewPresentation:
+    title: str
+    accessible_name: str
+    empty_title: str
+    empty_description: str
+    empty_icon: IconName
+    visible_columns: frozenset[DocumentColumn]
+
+
+_QUEUE_PRESENTATION = {
+    QueueRoute.INBOX: QueueViewPresentation(
+        title="נכנסו",
+        accessible_name="טבלת מסמכים נכנסים",
+        empty_title="אין מסמכים חדשים",
+        empty_description=(
+            "לא נמצאו מסמכים שממתינים לעיבוד. אפשר לסרוק את Drive כדי לבדוק שוב."
+        ),
+        empty_icon=IconName.DOCUMENT,
+        visible_columns=frozenset(
+            {
+                DocumentColumn.DOCUMENT,
+                DocumentColumn.SELECTION,
+                DocumentColumn.SOURCE,
+                DocumentColumn.DOCUMENT_NUMBER,
+                DocumentColumn.DATE,
+                DocumentColumn.STATUS,
+                DocumentColumn.CONFIDENCE,
+            }
+        ),
+    ),
+    QueueRoute.ATTENTION: QueueViewPresentation(
+        title="דורש טיפול",
+        accessible_name="טבלת מסמכים הדורשים טיפול",
+        empty_title="אין מסמכים שדורשים טיפול",
+        empty_description="אין כרגע מסמכים בקטגוריה שנבחרה.",
+        empty_icon=IconName.SUCCESS,
+        visible_columns=frozenset(
+            {
+                DocumentColumn.DOCUMENT,
+                DocumentColumn.SELECTION,
+                DocumentColumn.SUPPLIER,
+                DocumentColumn.DOCUMENT_NUMBER,
+                DocumentColumn.DATE,
+                DocumentColumn.TOTAL,
+                DocumentColumn.STATUS,
+                DocumentColumn.CONFIDENCE,
+                DocumentColumn.ATTENTION,
+            }
+        ),
+    ),
+    QueueRoute.IRRELEVANT: QueueViewPresentation(
+        title="לא רלוונטי",
+        accessible_name="טבלת מסמכים לא רלוונטיים",
+        empty_title="אין מסמכים לא רלוונטיים",
+        empty_description="לא סומנו מסמכים כלא רלוונטיים.",
+        empty_icon=IconName.TRASH,
+        visible_columns=frozenset(
+            {
+                DocumentColumn.DOCUMENT,
+                DocumentColumn.SELECTION,
+                DocumentColumn.SOURCE,
+                DocumentColumn.SUPPLIER,
+                DocumentColumn.DOCUMENT_NUMBER,
+                DocumentColumn.DATE,
+                DocumentColumn.TOTAL,
+                DocumentColumn.STATUS,
+            }
+        ),
+    ),
+    QueueRoute.HISTORY: QueueViewPresentation(
+        title="היסטוריה",
+        accessible_name="טבלת מסמכים שיוצאו",
+        empty_title="היסטוריית הייצוא ריקה",
+        empty_description="עדיין לא יוצאו מסמכים לקובץ Excel.",
+        empty_icon=IconName.ARCHIVE,
+        visible_columns=frozenset(
+            {
+                DocumentColumn.DOCUMENT,
+                DocumentColumn.SELECTION,
+                DocumentColumn.SOURCE,
+                DocumentColumn.SUPPLIER,
+                DocumentColumn.DOCUMENT_NUMBER,
+                DocumentColumn.DATE,
+                DocumentColumn.TOTAL,
+                DocumentColumn.STATUS,
+            }
+        ),
+    ),
 }
 
 
@@ -81,6 +177,44 @@ class QueueStatusDelegate(QStyledItemDelegate):
         painter.drawRoundedRect(badge, 7, 7)
         painter.setPen(QColor(foreground))
         painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, label)
+        painter.restore()
+
+
+class QueueSelectionDelegate(QStyledItemDelegate):
+    """Render native row selection as the approved compact checkbox gutter."""
+
+    def paint(self, painter: QPainter, option, index: QModelIndex) -> None:
+        base = QStyleOptionViewItem(option)
+        self.initStyleOption(base, index)
+        base.text = ""
+        style = option.widget.style() if option.widget is not None else QApplication.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, base, painter, option.widget)
+
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        size = 16
+        box = option.rect.adjusted(
+            (option.rect.width() - size) // 2,
+            (option.rect.height() - size) // 2,
+            -(option.rect.width() - size + 1) // 2,
+            -(option.rect.height() - size + 1) // 2,
+        )
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setPen(QPen(QColor(COLORS.brand if selected else COLORS.border_strong), 1.5))
+        painter.setBrush(QColor(COLORS.brand if selected else COLORS.surface))
+        painter.drawRoundedRect(box, 4, 4)
+        if selected:
+            painter.setPen(
+                QPen(
+                    QColor(COLORS.text_on_color),
+                    1.8,
+                    Qt.PenStyle.SolidLine,
+                    Qt.PenCapStyle.RoundCap,
+                    Qt.PenJoinStyle.RoundJoin,
+                )
+            )
+            painter.drawLine(box.left() + 4, box.center().y(), box.left() + 7, box.bottom() - 4)
+            painter.drawLine(box.left() + 7, box.bottom() - 4, box.right() - 3, box.top() + 4)
         painter.restore()
 
 
@@ -127,14 +261,15 @@ class DocumentQueueView(QWidget):
         *,
         parent: QWidget | None = None,
     ) -> None:
-        if route not in {QueueRoute.INBOX, QueueRoute.ATTENTION}:
-            raise ValueError("Phase G queue view supports Inbox or Needs Attention only")
+        if route not in _QUEUE_PRESENTATION:
+            raise ValueError(f"Unsupported document queue route: {route!r}")
         super().__init__(parent)
         self.route = route
         self.source_model = source_model
         self.proxy_model = DocumentFilterProxyModel(self)
         self.proxy_model.setSourceModel(source_model)
         self.proxy_model.set_route(route)
+        self.presentation = _QUEUE_PRESENTATION[route]
         self.setProperty("pandaComponent", "documentQueueView")
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self._build_ui()
@@ -217,13 +352,18 @@ class DocumentQueueView(QWidget):
 
         heading = QHBoxLayout()
         heading.setSpacing(SPACING.adjacent)
-        title = QLabel("נכנסו" if self.route is QueueRoute.INBOX else "דורש טיפול")
+        title = QLabel(self.presentation.title)
         apply_typography(title, TypographyRole.PAGE_TITLE)
         self.count_label = QLabel("0")
         self.count_label.setProperty("pandaComponent", "queueCount")
         apply_typography(self.count_label, TypographyRole.BADGE)
         heading.addWidget(title)
         heading.addWidget(self.count_label)
+        heading.addSpacing(SPACING.section)
+        self.search_field = SearchField()
+        self.search_field.setMaximumWidth(390)
+        self.search_field.textChanged.connect(self._search_changed)
+        heading.addWidget(self.search_field, 1)
         heading.addStretch()
 
         self.workspace_button = PandaButton("פתיחת מסמך", variant=ButtonVariant.GHOST)
@@ -232,25 +372,30 @@ class DocumentQueueView(QWidget):
         self.workspace_button.clicked.connect(self._request_selected_open)
         heading.addWidget(self.workspace_button)
         if self.route is QueueRoute.INBOX:
+            self.scan_button = PandaButton(
+                "סריקת Drive",
+                variant=ButtonVariant.SECONDARY,
+                icon_name=IconName.SCAN,
+            )
+            self.scan_button.clicked.connect(self.scanRequested)
+            heading.addWidget(self.scan_button)
             self.process_button = PandaButton(
-                "עיבוד מסמכים", variant=ButtonVariant.PRIMARY
+                "עיבוד מסמכים",
+                variant=ButtonVariant.PRIMARY,
+                icon_name=IconName.PROCESS,
             )
             self.process_button.clicked.connect(self.processRequested)
             heading.addWidget(self.process_button)
         else:
+            self.scan_button = None
             self.process_button = None
         root.addLayout(heading)
 
-        controls = QHBoxLayout()
-        controls.setSpacing(SPACING.adjacent)
-        self.search_field = SearchField()
-        self.search_field.setMaximumWidth(390)
-        self.search_field.textChanged.connect(self._search_changed)
-        controls.addWidget(self.search_field)
-        controls.addStretch()
         self.segment_buttons: dict[AttentionSegment, PandaButton] = {}
         self.segment_group: QButtonGroup | None = None
         if self.route is QueueRoute.ATTENTION:
+            controls = QHBoxLayout()
+            controls.setSpacing(SPACING.adjacent)
             self.segment_group = QButtonGroup(self)
             self.segment_group.setExclusive(True)
             for segment, label in _ATTENTION_SEGMENTS:
@@ -265,16 +410,13 @@ class DocumentQueueView(QWidget):
                 self.segment_buttons[segment] = button
                 controls.addWidget(button)
             self.segment_buttons[AttentionSegment.ALL].setChecked(True)
-        root.addLayout(controls)
+            controls.addStretch()
+            root.addLayout(controls)
 
         self.content_stack = QStackedWidget()
         self.table = QTableView()
         self.table.setProperty("pandaComponent", "documentQueueTable")
-        self.table.setAccessibleName(
-            "טבלת מסמכים נכנסים"
-            if self.route is QueueRoute.INBOX
-            else "טבלת מסמכים הדורשים טיפול"
-        )
+        self.table.setAccessibleName(self.presentation.accessible_name)
         self.table.setModel(self.proxy_model)
         self.table.setSortingEnabled(True)
         self.table.sortByColumn(
@@ -291,14 +433,19 @@ class DocumentQueueView(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.verticalHeader().setDefaultSectionSize(CONTROLS.table_row_height)
         header = self.table.horizontalHeader()
+        header.setFixedHeight(CONTROLS.table_header_height)
         header.setStretchLastSection(True)
         header.setSectionsClickable(True)
         header.setSortIndicatorShown(True)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         for column, spec in enumerate(DocumentTableModel.column_spec(i) for i in range(self.source_model.columnCount())):
             self.table.setColumnWidth(column, spec.width_hint)
-        if self.route is QueueRoute.INBOX:
-            self.table.setColumnHidden(DocumentTableModel.column_for(DocumentColumn.ATTENTION), True)
+            self.table.setColumnHidden(column, spec.key not in self.presentation.visible_columns)
+        selection_column = DocumentTableModel.column_for(DocumentColumn.SELECTION)
+        header.setSectionResizeMode(selection_column, QHeaderView.ResizeMode.Fixed)
+        self.table.setItemDelegateForColumn(
+            selection_column, QueueSelectionDelegate(self.table)
+        )
         status_column = DocumentTableModel.column_for(DocumentColumn.STATUS)
         self.table.setItemDelegateForColumn(status_column, QueueStatusDelegate(self.table))
         attention_column = DocumentTableModel.column_for(DocumentColumn.ATTENTION)
@@ -307,27 +454,28 @@ class DocumentQueueView(QWidget):
         )
         self.content_stack.addWidget(self.table)
 
+        self._empty_description = self.presentation.empty_description
         if self.route is QueueRoute.INBOX:
-            self._empty_description = (
-                "לא נמצאו מסמכים שממתינים לעיבוד. אפשר לסרוק את Drive כדי לבדוק שוב."
-            )
             self.empty_state = EmptyState(
-                "אין מסמכים חדשים",
+                self.presentation.empty_title,
                 self._empty_description,
-                icon_name=IconName.DOCUMENT,
+                icon_name=self.presentation.empty_icon,
                 action_text="סריקת Drive",
             )
             assert self.empty_state.action_button is not None
             self.empty_state.action_button.clicked.connect(self.scanRequested)
         else:
-            self._empty_description = "אין כרגע מסמכים בקטגוריה שנבחרה."
             self.empty_state = EmptyState(
-                "אין מסמכים שדורשים טיפול",
+                self.presentation.empty_title,
                 self._empty_description,
-                icon_name=IconName.SUCCESS,
+                icon_name=self.presentation.empty_icon,
             )
         self.content_stack.addWidget(self.empty_state)
         root.addWidget(self.content_stack, 1)
+
+        self.search_shortcut = QShortcut(QKeySequence.StandardKey.Find, self)
+        self.search_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.search_shortcut.activated.connect(self._focus_search)
 
     def _connect_model_signals(self) -> None:
         for signal in (
@@ -344,6 +492,10 @@ class DocumentQueueView(QWidget):
     def _search_changed(self, query: str) -> None:
         self.proxy_model.set_search_query(query)
         self._refresh_state()
+
+    def _focus_search(self) -> None:
+        self.search_field.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        self.search_field.selectAll()
 
     def _selection_changed(self, *_args) -> None:
         selected = self.selected_document_ids
@@ -383,8 +535,10 @@ class DocumentQueueView(QWidget):
             and self.proxy_model.attention_segment is not AttentionSegment.ALL
         )
         if filtered and self._route_total():
+            self.empty_state.title_label.setText("לא נמצאו תוצאות")
             self.empty_state.description_label.setText(
                 "אין תוצאות למסננים או לחיפוש הנוכחיים"
             )
         else:
+            self.empty_state.title_label.setText(self.presentation.empty_title)
             self.empty_state.description_label.setText(self._empty_description)

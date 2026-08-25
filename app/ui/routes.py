@@ -22,7 +22,6 @@ class RouteViewKind(str, Enum):
     OVERVIEW = "overview"
     DOCUMENT_QUEUE = "document_queue"
     READY = "ready"
-    QUEUE_PLACEHOLDER = "queue_placeholder"
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,7 +39,7 @@ ROUTES: tuple[RouteDefinition, ...] = (
     RouteDefinition(
         AppRoute.OVERVIEW,
         "סקירה",
-        IconName.INFO,
+        IconName.OVERVIEW,
         False,
         RouteViewKind.OVERVIEW,
         "סקירת העבודה הנוכחית",
@@ -48,7 +47,7 @@ ROUTES: tuple[RouteDefinition, ...] = (
     RouteDefinition(
         AppRoute.INBOX,
         "נכנסו",
-        IconName.DOCUMENT,
+        IconName.INBOX,
         True,
         RouteViewKind.DOCUMENT_QUEUE,
         "מסמכים חדשים הממתינים לעיבוד",
@@ -66,7 +65,7 @@ ROUTES: tuple[RouteDefinition, ...] = (
     RouteDefinition(
         AppRoute.READY,
         "מוכן",
-        IconName.CHECK,
+        IconName.SUCCESS,
         True,
         RouteViewKind.READY,
         "מסמכים שמוכנים לאישור או לייצוא",
@@ -77,16 +76,16 @@ ROUTES: tuple[RouteDefinition, ...] = (
         "לא רלוונטי",
         IconName.TRASH,
         True,
-        RouteViewKind.QUEUE_PLACEHOLDER,
+        RouteViewKind.DOCUMENT_QUEUE,
         "מסמכים שסומנו כלא רלוונטיים",
         QueueRoute.IRRELEVANT,
     ),
     RouteDefinition(
         AppRoute.HISTORY,
         "היסטוריה",
-        IconName.SUCCESS,
+        IconName.ARCHIVE,
         True,
-        RouteViewKind.QUEUE_PLACEHOLDER,
+        RouteViewKind.DOCUMENT_QUEUE,
         "מסמכים שיוצאו בעבר",
         QueueRoute.HISTORY,
     ),

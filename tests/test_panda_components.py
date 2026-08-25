@@ -233,6 +233,22 @@ def test_confirmation_dialog_connects_generic_actions(qapp) -> None:
     assert dialog.result() == dialog.DialogCode.Accepted
 
 
+def test_confirmation_dialog_defaults_keyboard_focus_to_safe_cancel(qapp) -> None:
+    dialog = ConfirmationDialog(
+        title="סימון כלא רלוונטי",
+        explanation="הסבר",
+        consequence="אין אפשרות שחזור",
+        primary_action="סמן",
+        destructive=True,
+    )
+    dialog.show()
+    qapp.processEvents()
+
+    assert dialog.cancel_button.isDefault()
+    assert dialog.focusWidget() is dialog.cancel_button
+    dialog.close()
+
+
 def test_component_gallery_builds_at_approved_minimum_size(qapp) -> None:
     from scripts.show_panda2_components import PandaComponentGallery
 

@@ -157,6 +157,14 @@ QLineEdit[pandaComponent="textField"]:read-only,
 QLineEdit[pandaComponent="textField"][validationState="disabled"] {{
     color: {c.text_muted}; background: {c.surface_secondary}; border-color: {c.border_secondary};
 }}
+QComboBox[pandaComponent="comboBox"] {{
+    min-height: {h.compact_input_height}px; padding: 0 10px;
+    color: {c.text_primary}; background: {c.surface};
+    border: {b.hairline}px solid {c.border_control}; border-radius: {r.control}px;
+}}
+QComboBox[pandaComponent="comboBox"]:focus {{
+    border: {b.focus}px solid {c.focus}; background: {c.focus_ring};
+}}
 QFrame[pandaComponent="fieldEditor"] {{ background: transparent; border: none; }}
 QLabel[pandaComponent="fieldStateLabel"][validationState="corrected"] {{ color: {c.brand_hover}; }}
 QLabel[pandaComponent="fieldStateLabel"][validationState="changed"] {{ color: {c.brand_hover}; }}
@@ -198,8 +206,8 @@ QFrame[pandaComponent="railBrand"] {{
 QLabel[pandaComponent="brandMark"] {{
     background: {c.brand}; color: {c.text_on_color}; border-radius: {r.compact_control}px;
 }}
-QLabel[pandaComponent="brandName"] {{ color: #f1f4f7; background: transparent; }}
-QLabel[pandaComponent="brandVersion"] {{ color: #6b7480; background: transparent; }}
+QLabel[pandaComponent="brandName"] {{ color: {c.navigation_heading}; background: transparent; }}
+QLabel[pandaComponent="brandVersion"] {{ color: {c.navigation_muted}; background: transparent; }}
 QPushButton[pandaComponent="navigationButton"] {{
     background: transparent; border: {b.hairline}px solid transparent;
     border-radius: {r.control}px; padding: 0; text-align: right;
@@ -216,10 +224,10 @@ QLabel[pandaComponent="navigationLabel"][active="true"] {{ color: {c.text_on_col
 QLabel[pandaComponent="navigationIcon"] {{ background: transparent; }}
 QLabel[pandaComponent="navigationCount"] {{
     min-width: 12px; min-height: 20px; max-height: 20px; padding: 0 5px;
-    color: #8a93a1; background: {c.navigation_active}; border-radius: 10px;
+    color: {c.navigation_count}; background: {c.navigation_active}; border-radius: 10px;
 }}
 QLabel[pandaComponent="navigationCount"][active="true"] {{
-    color: #f0b64a; background: #3a2f14;
+    color: {c.navigation_count_active}; background: {c.navigation_count_active_fill};
 }}
 QFrame[pandaComponent="navigationAccent"] {{
     background: {c.navigation_accent}; border: none; border-radius: 2px;
@@ -234,16 +242,16 @@ QPushButton[pandaComponent="taskDock"] {{
 QPushButton[pandaComponent="taskDock"]:hover {{ background: {c.navigation_active}; }}
 QPushButton[pandaComponent="taskDock"]:focus {{ border: {b.focus}px solid {c.navigation_accent}; }}
 QLabel[pandaComponent="taskIndicator"] {{
-    background: #6b7480; border-radius: 4px;
+    background: {c.navigation_muted}; border-radius: 4px;
 }}
 QLabel[pandaComponent="taskIndicator"][taskState="running"] {{ background: {c.navigation_accent}; }}
 QLabel[pandaComponent="taskIndicator"][taskState="succeeded"] {{ background: {c.approval}; }}
 QLabel[pandaComponent="taskIndicator"][taskState="failed"] {{ background: {c.error}; }}
 QLabel[pandaComponent="taskIndicator"][taskState="cancelled"],
 QLabel[pandaComponent="taskIndicator"][taskState="queued"] {{ background: {c.irrelevant}; }}
-QLabel[pandaComponent="taskTitle"] {{ color: #e6eaef; background: transparent; }}
+QLabel[pandaComponent="taskTitle"] {{ color: {c.navigation_task_title}; background: transparent; }}
 QLabel[pandaComponent="taskCount"] {{ color: {c.navigation_accent}; background: transparent; }}
-QLabel[pandaComponent="taskDetail"] {{ color: #7c8592; background: transparent; }}
+QLabel[pandaComponent="taskDetail"] {{ color: {c.navigation_task_detail}; background: transparent; }}
 QProgressBar[pandaComponent="taskProgress"] {{
     background: {c.navigation_border}; border: none; border-radius: 2px;
 }}
@@ -352,9 +360,6 @@ QFrame[pandaComponent="idleTaskCard"] {{
     background: {c.surface_secondary}; border: {b.hairline}px solid {c.border_secondary};
     border-radius: {r.control}px;
 }}
-QFrame[pandaComponent="routePlaceholder"] {{
-    background: {c.application_background}; border: none;
-}}
 QWidget[pandaComponent="documentQueueView"] {{
     background: {c.application_background}; border: none;
 }}
@@ -383,6 +388,9 @@ QTableView[pandaComponent="documentQueueTable"]::item {{
 QTableView[pandaComponent="documentQueueTable"]::item:selected {{
     background: {c.selection}; border-bottom-color: {c.selection_border};
 }}
+QTableView[pandaComponent="documentQueueTable"]::item:hover:!selected {{
+    background: {c.surface_secondary};
+}}
 QTableView[pandaComponent="documentQueueTable"]:focus {{
     border: {b.focus}px solid {c.focus};
 }}
@@ -402,6 +410,10 @@ QLabel[pandaComponent="workspaceDirtyIndicator"] {{
     color: {c.warning}; background: {c.warning_tint};
     border: {b.hairline}px solid {c.warning}; border-radius: {r.chip}px;
     padding: 3px 7px;
+}}
+QLabel[pandaComponent="workspaceConfidence"] {{
+    color: {c.text_muted}; background: {c.surface_secondary};
+    border-radius: {r.chip}px; padding: 3px 7px;
 }}
 QFrame[pandaComponent="workspaceQueueRail"] {{
     background: {c.surface_secondary}; border: none;
@@ -454,6 +466,17 @@ QFrame[pandaComponent="workspaceField"][fieldState="invalid"] {{
     background: {c.error_tint}; border-color: {c.error_tint};
 }}
 QLabel[pandaComponent="workspaceProvenance"] {{ color: {c.text_secondary}; }}
+QLabel[pandaComponent="workspaceAttention"] {{
+    color: {c.warning}; background: {c.warning_tint};
+    border: {b.hairline}px solid {c.warning_tint}; border-radius: {r.control}px;
+    padding: 8px;
+}}
+QLabel[pandaComponent="workspaceError"] {{
+    color: {c.error}; background: {c.error_tint};
+    border: {b.hairline}px solid {c.error_tint}; border-radius: {r.control}px;
+    padding: 8px;
+}}
+QLabel[pandaComponent="workspaceFieldValue"] {{ color: {c.text_primary}; }}
 QLabel[pandaComponent="workspaceDuplicateNotice"] {{
     background: {c.duplicate_tint}; border: {b.hairline}px solid {c.duplicate_tint};
     border-radius: {r.control}px;

@@ -1,4 +1,4 @@
-"""Stable-ID navigation state for the future Panda 2.0 Workspace."""
+"""Stable-ID navigation state for the Panda 2.0 Workspace."""
 
 from __future__ import annotations
 

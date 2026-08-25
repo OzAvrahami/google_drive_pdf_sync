@@ -68,6 +68,7 @@ def test_inbox_search_uses_phase_d_proxy_fields(qapp) -> None:
     assert view.proxy_model.rowCount() == 1
     view.search_field.setText("INV-NOPE")
     assert view.proxy_model.rowCount() == 0
+    assert view.empty_state.title_label.text() == "לא נמצאו תוצאות"
     assert "אין תוצאות" in view.empty_state.description_label.text()
 
 
@@ -142,9 +143,10 @@ def test_empty_inbox_scan_and_process_actions_emit_only_intent(qapp) -> None:
     process = QSignalSpy(view.processRequested)
 
     view.empty_state.action_button.click()
+    view.scan_button.click()
     view.process_button.click()
 
-    assert scan.count() == 1
+    assert scan.count() == 2
     assert process.count() == 1
 
 
@@ -182,3 +184,60 @@ def test_source_folder_context_is_visible(qapp) -> None:
     view = DocumentQueueView(DocumentTableModel(mixed()), QueueRoute.INBOX)
     source_column = DocumentTableModel.column_for(DocumentColumn.SOURCE)
     assert view.table.isColumnHidden(source_column) is False
+
+
+@pytest.mark.parametrize(
+    ("route", "expected_ids", "empty_title"),
+    (
+        (QueueRoute.IRRELEVANT, ("irrelevant", "excluded"), "אין מסמכים לא רלוונטיים"),
+        (QueueRoute.HISTORY, ("history",), "היסטוריית הייצוא ריקה"),
+    ),
+)
+def test_terminal_routes_use_real_shared_queue(
+    qapp, route: QueueRoute, expected_ids: tuple[str, ...], empty_title: str
+) -> None:
+    documents = mixed() + [
+        doc("irrelevant", "confirmed_irrelevant"),
+        doc("excluded", "excluded"),
+        doc("history", "exported", was_manually_corrected=True),
+    ]
+    view = DocumentQueueView(DocumentTableModel(documents), route)
+
+    assert view.ordered_visible_document_ids == expected_ids
+    assert view.empty_state.title_label.text() == empty_title
+    assert view.process_button is None
+    assert view.segment_buttons == {}
+
+
+@pytest.mark.parametrize("route", (QueueRoute.IRRELEVANT, QueueRoute.HISTORY))
+def test_terminal_routes_search_sort_and_open_read_only_workspace_contract(qapp, route) -> None:
+    status = "exported" if route is QueueRoute.HISTORY else "confirmed_irrelevant"
+    documents = [
+        doc("alpha", status, file_name="alpha.pdf", supplier_name="English Supplier", total=20),
+        doc("hebrew", status, file_name="hebrew.pdf", supplier_name="ספק עברי", total=3),
+    ]
+    view = DocumentQueueView(DocumentTableModel(documents), route)
+    opened = QSignalSpy(view.openDocumentRequested)
+
+    view.search_field.setText("supplier")
+    assert view.ordered_visible_document_ids == ("alpha",)
+    view.restore_selected_document_ids(("alpha",))
+    view.workspace_button.click()
+
+    assert opened.count() == 1
+    assert opened.at(0)[0] == "alpha"
+    assert opened.at(0)[2] == route.value
+
+
+def test_queue_find_shortcut_focuses_search(qapp) -> None:
+    view = DocumentQueueView(DocumentTableModel(mixed()), QueueRoute.INBOX)
+    view.show()
+    view.activateWindow()
+    qapp.processEvents()
+    view.table.setFocus()
+
+    view.search_shortcut.activated.emit()
+    qapp.processEvents()
+
+    assert view.search_field.hasFocus()
+    view.close()

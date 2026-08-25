@@ -4,6 +4,7 @@ from app.ui.views.overview import OverviewView
 from app.ui.views.document_queue import (
     DocumentQueueView,
     QueueAttentionDelegate,
+    QueueSelectionDelegate,
     QueueStatusDelegate,
 )
 from app.ui.views.overview_data import (
@@ -12,7 +13,6 @@ from app.ui.views.overview_data import (
     RecentDocumentChange,
     build_overview_snapshot,
 )
-from app.ui.views.route_placeholder import QueueRoutePlaceholder
 from app.ui.views.ready import ReadyView
 
 __all__ = [
@@ -21,8 +21,8 @@ __all__ = [
     "OverviewView",
     "DocumentQueueView",
     "QueueAttentionDelegate",
+    "QueueSelectionDelegate",
     "QueueStatusDelegate",
-    "QueueRoutePlaceholder",
     "ReadyView",
     "RecentDocumentChange",
     "build_overview_snapshot",

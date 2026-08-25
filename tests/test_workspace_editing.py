@@ -269,6 +269,17 @@ def test_successful_save_persists_correction_learning_and_resets_dirty(qapp) -> 
     assert workspace.review_panel.feedback.property("variant") == "success"
 
 
+def test_ctrl_s_shortcut_uses_guarded_workspace_save(qapp) -> None:
+    source, workspace = make_workspace([document()])
+    workspace.review_panel.field_editors["description"].editor.setText("Updated safely")
+
+    workspace.save_shortcut.activated.emit()
+
+    assert source.write_count == 1
+    assert source.get_by_drive_id("one").corrected_data["description"] == "Updated safely"
+    assert workspace.is_dirty is False
+
+
 def test_learning_failure_is_secondary_after_successful_save(qapp) -> None:
     def fail_learning(**_kwargs):
         raise RuntimeError("synthetic learning failure")

@@ -5,7 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QPushButton,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 from app.application.task_manager import TaskRecord, TaskState
 from app.ui.models.task_list_model import TaskListModel
@@ -60,6 +68,8 @@ class TaskDock(QPushButton):
         self._indicator.setProperty("pandaComponent", "taskIndicator")
         self._indicator.setFixedSize(9, 9)
         self._title = QLabel()
+        self._title.setMinimumWidth(0)
+        self._title.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self._title.setProperty("pandaComponent", "taskTitle")
         apply_typography(self._title, TypographyRole.COMPACT_BODY)
         self._count = QLabel()
@@ -77,6 +87,8 @@ class TaskDock(QPushButton):
         root.addWidget(self._progress)
 
         self._detail = QLabel()
+        self._detail.setMinimumWidth(0)
+        self._detail.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self._detail.setProperty("pandaComponent", "taskDetail")
         self._detail.setWordWrap(False)
         apply_typography(self._detail, TypographyRole.HELPER)
@@ -146,4 +158,3 @@ class TaskDock(QPushButton):
         )
         repolish(self)
         repolish(self._indicator)
-

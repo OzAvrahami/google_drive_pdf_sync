@@ -98,7 +98,7 @@ _STATE_LABELS = {
 
 
 class FieldEditor(QFrame):
-    """Presentation-only shell for future ReviewDraft field bindings."""
+    """ReviewDraft-aware field editor with consistent provenance presentation."""
 
     def __init__(
         self,

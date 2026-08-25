@@ -107,6 +107,9 @@ class ConfirmationDialog(QDialog):
         self.panel.confirmed.connect(self.accept)
         self.panel.cancelled.connect(self.reject)
         root.addWidget(self.panel)
+        self.cancel_button.setDefault(True)
+        self.cancel_button.setAutoDefault(True)
+        self.cancel_button.setFocus()
 
     @property
     def primary_button(self) -> PandaButton:

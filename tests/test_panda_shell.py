@@ -22,7 +22,7 @@ from app.ui.shell import PandaMainWindow
 from app.ui.theme.icons import icon_for
 from app.ui.theme.tokens import LAYOUT
 from app.ui.views.document_queue import DocumentQueueView
-from app.ui.views.route_placeholder import QueueRoutePlaceholder
+from app.ui.views.ready import ReadyView
 
 
 @pytest.fixture(scope="module")
@@ -113,16 +113,22 @@ def test_route_switching_selects_real_destination_widget(qapp, route: AppRoute) 
     assert shell.header_title.text() == next(
         definition.label_he for definition in ROUTES if definition.route is route
     )
+    assert shell.header.isHidden() is (route is not AppRoute.OVERVIEW)
 
 
-def test_phase_g_routes_are_real_queues_and_remaining_routes_are_placeholders(qapp) -> None:
+def test_all_six_routes_are_real_views_without_placeholders(qapp) -> None:
     shell = PandaMainWindow(ReadOnlySource())
 
     for route in AppRoute:
-        if route in {AppRoute.INBOX, AppRoute.ATTENTION}:
+        if route in {
+            AppRoute.INBOX,
+            AppRoute.ATTENTION,
+            AppRoute.IRRELEVANT,
+            AppRoute.HISTORY,
+        }:
             assert isinstance(shell.view_for(route), DocumentQueueView)
-        elif route is not AppRoute.OVERVIEW:
-            assert isinstance(shell.view_for(route), QueueRoutePlaceholder)
+        elif route is AppRoute.READY:
+            assert isinstance(shell.view_for(route), ReadyView)
 
 
 def test_navigation_button_click_activates_route(qapp) -> None:

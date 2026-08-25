@@ -30,8 +30,11 @@ def qapp() -> QApplication:
 
 @pytest.fixture(autouse=True)
 def cleanup_widgets(qapp):
+    existing_widgets = set(QApplication.topLevelWidgets())
     yield
     for widget in QApplication.topLevelWidgets():
+        if widget in existing_widgets:
+            continue
         if isinstance(widget, PandaMainWindow):
             widget.workspace.set_discard_confirmation(lambda _reason: True)
         widget.close()

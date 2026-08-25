@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -61,6 +62,8 @@ class TaskCenterRow(QFrame):
         self._indicator.setProperty("pandaComponent", "taskCenterIndicator")
         self._indicator.setFixedSize(9, 9)
         self._title = QLabel()
+        self._title.setMinimumWidth(0)
+        self._title.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         apply_typography(self._title, TypographyRole.COMPACT_BODY)
         self._state_label = QLabel()
         self._state_label.setProperty("pandaComponent", "taskCenterState")
@@ -79,6 +82,8 @@ class TaskCenterRow(QFrame):
 
         bottom = QHBoxLayout()
         self._detail = QLabel()
+        self._detail.setMinimumWidth(0)
+        self._detail.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self._detail.setProperty("pandaComponent", "taskCenterDetail")
         self._detail.setWordWrap(False)
         apply_typography(self._detail, TypographyRole.HELPER)

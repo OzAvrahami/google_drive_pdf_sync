@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, Qt, Signal
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
@@ -41,7 +42,7 @@ from app.ui.models.queue_policy import belongs_to_route
 from app.ui.theme.icons import IconName
 from app.ui.theme.tokens import COLORS, CONTROLS, SPACING
 from app.ui.theme.typography import TypographyRole, apply_typography
-from app.ui.views.document_queue import QueueStatusDelegate
+from app.ui.views.document_queue import QueueSelectionDelegate, QueueStatusDelegate
 
 
 _READY_SEGMENTS: tuple[tuple[ReadySegment, str], ...] = (
@@ -63,7 +64,7 @@ class ReadyView(QWidget):
     def __init__(
         self,
         source_model: DocumentTableModel,
-        approval_service: ApprovalService,
+        approval_service: ApprovalService | None,
         *,
         workbook_path: str,
         confirm_export: ExportConfirmation | None = None,
@@ -80,7 +81,8 @@ class ReadyView(QWidget):
         self.proxy_model.setSourceModel(source_model)
         self.proxy_model.set_route(QueueRoute.READY)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
-        self.setProperty("pandaComponent", "readyView")
+        self.setProperty("pandaComponent", "documentQueueView")
+        self.setAccessibleName("מוכן")
         self._build_ui()
         self._connect_signals()
         self._refresh_state()
@@ -186,6 +188,8 @@ class ReadyView(QWidget):
         self.focus_document(first, preserve_selection=True)
 
     def approve_selected(self) -> None:
+        if self.approval_service is None:
+            return
         selected = self.selected_document_ids
         plan = self.approval_service.preflight_batch(selected)
         self._last_plan = plan
@@ -214,6 +218,8 @@ class ReadyView(QWidget):
         self._selection_changed()
 
     def request_selected_export(self) -> None:
+        if self.approval_service is None:
+            return
         selected = self.selected_document_ids
         plan = self.approval_service.preflight_batch(selected)
         approved_ids = plan.already_approved_ids
@@ -235,6 +241,10 @@ class ReadyView(QWidget):
         apply_typography(self.count_label, TypographyRole.BADGE)
         heading.addWidget(title)
         heading.addWidget(self.count_label)
+        heading.addSpacing(SPACING.section)
+        self.search_field = SearchField()
+        self.search_field.setMaximumWidth(390)
+        heading.addWidget(self.search_field, 1)
         heading.addStretch()
         self.open_button = PandaButton("פתיחת מסמך", variant=ButtonVariant.GHOST)
         self.open_button.setEnabled(False)
@@ -243,10 +253,7 @@ class ReadyView(QWidget):
         root.addLayout(heading)
 
         controls = QHBoxLayout()
-        self.search_field = SearchField()
-        self.search_field.setMaximumWidth(390)
-        controls.addWidget(self.search_field)
-        controls.addStretch()
+        controls.setSpacing(SPACING.adjacent)
         self.segment_group = QButtonGroup(self)
         self.segment_group.setExclusive(True)
         self.segment_buttons: dict[ReadySegment, PandaButton] = {}
@@ -263,9 +270,11 @@ class ReadyView(QWidget):
             controls.addWidget(button)
         self.segment_buttons[ReadySegment.ALL].setChecked(True)
         self.manual_button = PandaButton("תוקן ידנית", variant=ButtonVariant.GHOST)
+        self.manual_button.setProperty("pandaComponent", "queueSegment")
         self.manual_button.setCheckable(True)
         self.manual_button.clicked.connect(self.set_manually_corrected_only)
         controls.addWidget(self.manual_button)
+        controls.addStretch()
         root.addLayout(controls)
 
         self.batch_bar = QFrame()
@@ -276,11 +285,11 @@ class ReadyView(QWidget):
         self.selection_label = QLabel()
         apply_typography(self.selection_label, TypographyRole.LABEL)
         self.approve_button = PandaButton(
-            "אשר נבחרים", variant=ButtonVariant.APPROVAL
+            "אשר נבחרים", variant=ButtonVariant.APPROVAL, icon_name=IconName.CHECK
         )
         self.approve_button.clicked.connect(self.approve_selected)
         self.export_button = PandaButton(
-            "ייצוא נבחרים", variant=ButtonVariant.SECONDARY
+            "ייצוא נבחרים", variant=ButtonVariant.SECONDARY, icon_name=IconName.EXPORT
         )
         self.export_button.clicked.connect(self.request_selected_export)
         self.show_blockers_button = PandaButton(
@@ -304,6 +313,8 @@ class ReadyView(QWidget):
 
         self.content_stack = QStackedWidget()
         self.table = QTableView()
+        self.table.setProperty("pandaComponent", "documentQueueTable")
+        self.table.setAccessibleName("טבלת מסמכים מוכנים")
         self.table.setModel(self.proxy_model)
         self.table.setSortingEnabled(True)
         self.table.sortByColumn(
@@ -314,10 +325,14 @@ class ReadyView(QWidget):
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setShowGrid(False)
+        self.table.setAlternatingRowColors(False)
         self.table.verticalHeader().setVisible(False)
         self.table.verticalHeader().setDefaultSectionSize(CONTROLS.table_row_height)
         header = self.table.horizontalHeader()
+        header.setFixedHeight(CONTROLS.table_header_height)
         header.setStretchLastSection(True)
+        header.setSectionsClickable(True)
+        header.setSortIndicatorShown(True)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         for column in range(self.source_model.columnCount()):
             self.table.setColumnWidth(
@@ -325,6 +340,14 @@ class ReadyView(QWidget):
             )
         self.table.setColumnHidden(
             DocumentTableModel.column_for(DocumentColumn.ATTENTION), True
+        )
+        self.table.setColumnHidden(
+            DocumentTableModel.column_for(DocumentColumn.SOURCE), True
+        )
+        selection_column = DocumentTableModel.column_for(DocumentColumn.SELECTION)
+        header.setSectionResizeMode(selection_column, QHeaderView.ResizeMode.Fixed)
+        self.table.setItemDelegateForColumn(
+            selection_column, QueueSelectionDelegate(self.table)
         )
         self.table.setItemDelegateForColumn(
             DocumentTableModel.column_for(DocumentColumn.STATUS),
@@ -338,6 +361,10 @@ class ReadyView(QWidget):
         )
         self.content_stack.addWidget(self.empty_state)
         root.addWidget(self.content_stack, 1)
+
+        self.search_shortcut = QShortcut(QKeySequence.StandardKey.Find, self)
+        self.search_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.search_shortcut.activated.connect(self._focus_search)
 
     def _connect_signals(self) -> None:
         self.search_field.textChanged.connect(self._search_changed)
@@ -358,6 +385,14 @@ class ReadyView(QWidget):
         self.batch_bar.setVisible(bool(selected))
         if not selected:
             self._last_plan = None
+            return
+        if self.approval_service is None:
+            self._last_plan = None
+            self.selection_label.setText(f"{len(selected)} נבחרו")
+            for button in (self.approve_button, self.export_button):
+                button.setEnabled(False)
+                button.setToolTip("הפעולה אינה זמינה במצב קריאה בלבד")
+            self.show_blockers_button.hide()
             return
         plan = self.approval_service.preflight_batch(selected)
         self._last_plan = plan
@@ -391,6 +426,10 @@ class ReadyView(QWidget):
         self.restore_selected_document_ids(selected)
         self._refresh_state()
 
+    def _focus_search(self) -> None:
+        self.search_field.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        self.search_field.selectAll()
+
     def _request_selected_open(self) -> None:
         selected = self.selected_document_ids
         if len(selected) == 1:
@@ -415,10 +454,12 @@ class ReadyView(QWidget):
             or self.proxy_model.manually_corrected_only
         )
         if not count and filtered and self._route_total():
+            self.empty_state.title_label.setText("לא נמצאו תוצאות")
             self.empty_state.description_label.setText(
                 "אין תוצאות למסננים או לחיפוש הנוכחיים"
             )
         else:
+            self.empty_state.title_label.setText("אין מסמכים מוכנים")
             self.empty_state.description_label.setText(
                 "אין כרגע מסמכים שממתינים לאישור או לייצוא."
             )

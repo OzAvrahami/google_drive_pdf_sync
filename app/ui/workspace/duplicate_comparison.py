@@ -68,6 +68,7 @@ class DuplicateComparisonPanel(QFrame):
         details_layout.setContentsMargins(8, 8, 8, 8)
         details_layout.setSpacing(7)
         self.candidate_selector = QComboBox()
+        self.candidate_selector.setProperty("pandaComponent", "comboBox")
         self.candidate_selector.setAccessibleName("בחירת מסמך חשוד להשוואה")
         for index, comparison in enumerate(comparisons):
             candidate = comparison.candidate_document
@@ -147,6 +148,8 @@ class DuplicateComparisonPanel(QFrame):
             )
             current_heading = QLabel("המסמך הנוכחי — זהו המסמך שיסומן כלא רלוונטי")
             candidate_heading = QLabel("המסמך הקיים — יישאר ללא שינוי")
+            current_heading.setWordWrap(True)
+            candidate_heading.setWordWrap(True)
             apply_typography(current_heading, TypographyRole.LABEL)
             apply_typography(candidate_heading, TypographyRole.LABEL)
             grid.addWidget(QLabel(""), 0, 0)
@@ -156,6 +159,8 @@ class DuplicateComparisonPanel(QFrame):
                 label = QLabel(_FIELD_LABELS[field.field_name])
                 current = QLabel(self._display(field.current_value))
                 candidate = QLabel(self._display(field.candidate_value))
+                current.setWordWrap(True)
+                candidate.setWordWrap(True)
                 if field.participates_in_rule and field.matches:
                     current.setProperty("duplicateMatch", True)
                     candidate.setProperty("duplicateMatch", True)
@@ -171,6 +176,8 @@ class DuplicateComparisonPanel(QFrame):
                 grid.addWidget(label, row, 0)
                 grid.addWidget(current, row, 1)
                 grid.addWidget(candidate, row, 2)
+            grid.setColumnStretch(1, 1)
+            grid.setColumnStretch(2, 1)
         layout = self.details.layout()
         layout.replaceWidget(old, replacement)
         old.deleteLater()

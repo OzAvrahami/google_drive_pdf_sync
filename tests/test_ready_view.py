@@ -231,4 +231,5 @@ def test_empty_filtered_state_is_distinct(qapp) -> None:
     view, _, _ = build_view(doc("processed"))
     view.set_ready_segment(ReadySegment.READY_TO_EXPORT)
     assert view.content_stack.currentWidget() is view.empty_state
+    assert view.empty_state.title_label.text() == "לא נמצאו תוצאות"
     assert "מסננים" in view.empty_state.description_label.text()

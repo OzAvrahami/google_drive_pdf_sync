@@ -186,6 +186,35 @@ def test_back_preserves_multi_selection_while_focusing_opened_document(qapp) -> 
     assert view.proxy_model.document_id_for_index(view.table.currentIndex()) == "review-a"
 
 
+@pytest.mark.parametrize(
+    ("route", "status"),
+    (
+        (AppRoute.IRRELEVANT, "confirmed_irrelevant"),
+        (AppRoute.IRRELEVANT, "excluded"),
+        (AppRoute.HISTORY, "exported"),
+    ),
+)
+def test_terminal_routes_open_read_only_workspace_and_restore_search(qapp, route, status) -> None:
+    source = ReadOnlySource([doc("terminal", status=status)])
+    shell = PandaMainWindow(source, operational_enabled=False)
+    shell.navigate(route)
+    view = shell.view_for(route)
+    view.search_field.setText("terminal")
+
+    assert shell.open_workspace(
+        "terminal", view.ordered_visible_document_ids, route.value
+    )
+    assert shell.workspace.is_editable is False
+    assert shell.workspace.review_panel.save_button.isHidden()
+    assert shell.workspace.review_panel.approve_button.isHidden()
+
+    shell.workspace.return_to_queue()
+    assert shell.current_route is route
+    assert view.search_field.text() == "terminal"
+    assert view.selected_document_ids == ("terminal",)
+    assert source.write_calls == 0
+
+
 def test_escape_returns_to_originating_queue(qapp) -> None:
     shell = PandaMainWindow(ReadOnlySource(attention_documents()), operational_enabled=False)
     shell.show()

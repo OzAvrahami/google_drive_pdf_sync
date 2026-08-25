@@ -10,6 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from PySide6.QtTest import QSignalSpy
 from PySide6.QtWidgets import QApplication
 
@@ -56,7 +57,7 @@ def test_row_column_counts_and_centralized_headers(qapp) -> None:
     model = DocumentTableModel([_document("one"), _document("two")])
 
     assert model.rowCount() == 2
-    assert model.columnCount() == len(COLUMN_SPECS) == 9
+    assert model.columnCount() == len(COLUMN_SPECS) == 10
     assert [
         model.headerData(column, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole)
         for column in range(model.columnCount())
@@ -89,16 +90,32 @@ def test_display_formatting_is_separate_from_typed_values(qapp) -> None:
     assert model.data(_index(model, DocumentColumn.CONFIDENCE), DocumentRoles.SORT) == 0.92
 
 
+def test_table_font_roles_keep_hebrew_in_ui_sans_and_technical_values_monospace(qapp) -> None:
+    model = DocumentTableModel([_document()])
+
+    supplier_font = model.data(
+        _index(model, DocumentColumn.SUPPLIER), Qt.ItemDataRole.FontRole
+    )
+    amount_font = model.data(
+        _index(model, DocumentColumn.TOTAL), Qt.ItemDataRole.FontRole
+    )
+
+    assert isinstance(supplier_font, QFont)
+    assert supplier_font.fixedPitch() is False
+    assert isinstance(amount_font, QFont)
+    assert amount_font.fixedPitch() is True
+
+
 def test_missing_and_invalid_typed_values_are_deterministic(qapp) -> None:
     model = DocumentTableModel(
         [_document(total=None, invoice_date="not-a-date", confidence=None)]
     )
 
-    assert model.data(_index(model, DocumentColumn.TOTAL)) == ""
+    assert model.data(_index(model, DocumentColumn.TOTAL)) == "—"
     assert model.data(_index(model, DocumentColumn.TOTAL), DocumentRoles.SORT) is None
     assert model.data(_index(model, DocumentColumn.DATE)) == "not-a-date"
     assert model.data(_index(model, DocumentColumn.DATE), DocumentRoles.SORT) is None
-    assert model.data(_index(model, DocumentColumn.CONFIDENCE)) == ""
+    assert model.data(_index(model, DocumentColumn.CONFIDENCE)) == "—"
     assert model.data(_index(model, DocumentColumn.CONFIDENCE), DocumentRoles.SORT) is None
 
 

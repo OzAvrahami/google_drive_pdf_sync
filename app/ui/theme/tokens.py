@@ -20,6 +20,13 @@ class ColorTokens:
     navigation_border: str = "#313c4b"
     navigation_text: str = "#aab2bd"
     navigation_accent: str = "#1fb6ad"
+    navigation_heading: str = "#f1f4f7"
+    navigation_muted: str = "#6b7480"
+    navigation_count: str = "#8a93a1"
+    navigation_count_active: str = "#f0b64a"
+    navigation_count_active_fill: str = "#3a2f14"
+    navigation_task_title: str = "#e6eaef"
+    navigation_task_detail: str = "#7c8592"
 
     text_primary: str = "#26241f"
     text_heading: str = "#3a362f"

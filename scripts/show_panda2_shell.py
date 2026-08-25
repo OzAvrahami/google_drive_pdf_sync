@@ -1,4 +1,4 @@
-"""Offline visual harness for the Panda 2.0 Phase E shell.
+"""Offline visual harness for the complete Panda 2.0 shell.
 
 Examples:
     python -B scripts/show_panda2_shell.py
@@ -44,7 +44,8 @@ class _SyntheticSource:
             ("ready-2", "שירותי ניקיון.pdf", "processed", False, True, 8),
             ("approved-1", "cellcom.pdf", "approved", False, False, 9),
             ("irrelevant-1", "supplier_form.pdf", "confirmed_irrelevant", False, False, 10),
-            ("history-1", "exported_invoice.pdf", "exported", False, False, 11),
+            ("excluded-1", "legacy_excluded.pdf", "excluded", False, False, 11),
+            ("history-1", "exported_invoice.pdf", "exported", False, True, 12),
         )
         self.documents = [
             Document(

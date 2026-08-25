@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from app.ui.components import ButtonVariant, PandaButton, StatusBadge
 from app.ui.theme.direction import TextKind, apply_text_direction, isolate_ltr
+from app.ui.theme.icons import IconName
 from app.ui.theme.tokens import SPACING
 from app.ui.theme.typography import TypographyRole, apply_typography
 from app.ui.workspace.presentation import WorkspaceDocumentPresentation
@@ -25,7 +26,9 @@ class WorkspaceHeader(QFrame):
         root = QHBoxLayout(self)
         root.setContentsMargins(16, 0, 16, 0)
         root.setSpacing(SPACING.standard)
-        self.back_button = PandaButton("חזרה לתור", variant=ButtonVariant.SECONDARY)
+        self.back_button = PandaButton(
+            "חזרה לתור", variant=ButtonVariant.SECONDARY, icon_name=IconName.BACK
+        )
         self.back_button.clicked.connect(self.backRequested)
         root.addWidget(self.back_button)
         self.related_back_button = PandaButton(
