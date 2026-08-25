@@ -13,6 +13,7 @@ from app.ui.views.overview_data import (
     build_overview_snapshot,
 )
 from app.ui.views.route_placeholder import QueueRoutePlaceholder
+from app.ui.views.ready import ReadyView
 
 __all__ = [
     "OverviewMetric",
@@ -22,6 +23,7 @@ __all__ = [
     "QueueAttentionDelegate",
     "QueueStatusDelegate",
     "QueueRoutePlaceholder",
+    "ReadyView",
     "RecentDocumentChange",
     "build_overview_snapshot",
 ]

@@ -198,8 +198,8 @@ def test_otherwise_ineligible_ids_are_reported_separately() -> None:
     assert result.plan.blocker_ids == ()
     assert result.plan.ineligible_reasons == {
         "failed": ("status_not_approvable",),
-        "missing": ("document_not_found",),
     }
+    assert result.plan.missing_ids == ("missing",)
     assert len(repository.upsert_many_calls) == 1
 
 

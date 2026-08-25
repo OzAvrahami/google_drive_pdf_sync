@@ -21,6 +21,7 @@ class AppRoute(str, Enum):
 class RouteViewKind(str, Enum):
     OVERVIEW = "overview"
     DOCUMENT_QUEUE = "document_queue"
+    READY = "ready"
     QUEUE_PLACEHOLDER = "queue_placeholder"
 
 
@@ -67,7 +68,7 @@ ROUTES: tuple[RouteDefinition, ...] = (
         "מוכן",
         IconName.CHECK,
         True,
-        RouteViewKind.QUEUE_PLACEHOLDER,
+        RouteViewKind.READY,
         "מסמכים שמוכנים לאישור או לייצוא",
         QueueRoute.READY,
     ),

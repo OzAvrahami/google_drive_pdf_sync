@@ -67,7 +67,11 @@ def main(arguments: list[str] | None = None) -> int:
         )
         return 1
 
-    window = PandaMainWindow(store) if use_panda2 else MainWindow(store)
+    window = (
+        PandaMainWindow(store, export_enabled=True)
+        if use_panda2
+        else MainWindow(store)
+    )
     window.show()
 
     logger.info("Application started.")

@@ -46,6 +46,10 @@ class DocumentFilterProxyModel(QSortFilterProxyModel):
     def ready_segment(self) -> ReadySegment:
         return self._ready_segment
 
+    @property
+    def manually_corrected_only(self) -> bool:
+        return self._manually_corrected_only
+
     def set_route(self, route: QueueRoute | None) -> None:
         route = QueueRoute(route) if route is not None else None
         if route != self._route:

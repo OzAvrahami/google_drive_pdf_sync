@@ -20,11 +20,13 @@ from PySide6.QtWidgets import (
 
 from app.application.task_manager import TaskManager, TaskType
 from app.application.approval_service import ApprovalService
+from app.application.export_service import ExportService
 from app.application.document_review_service import DocumentReviewService
 from app.application.duplicate_comparison_service import DuplicateComparisonService
 from app.application.duplicate_resolution_service import DuplicateResolutionService
 from app.application.irrelevant_service import IrrelevantService
 from app.application.workspace_approval_service import WorkspaceApprovalService
+from app.config import EXCEL_OUTPUT_PATH
 from app.models.document import Document
 from app.ui.components import ButtonVariant, NavigationRail, PandaButton
 from app.ui.models.document_table_model import DocumentTableModel
@@ -35,8 +37,9 @@ from app.ui.theme import apply_panda_theme
 from app.ui.theme.tokens import LAYOUT, SPACING
 from app.ui.theme.typography import TypographyRole, apply_typography
 from app.ui.tasks.task_center import TaskCenter
+from app.ui.tasks.export_tasks import ExportTaskController
 from app.ui.tasks.operational_tasks import OperationalTaskController
-from app.ui.views import DocumentQueueView, OverviewView, QueueRoutePlaceholder
+from app.ui.views import DocumentQueueView, OverviewView, QueueRoutePlaceholder, ReadyView
 from app.ui.workspace import WorkspaceView
 
 
@@ -67,6 +70,9 @@ class PandaMainWindow(QMainWindow):
         irrelevant_service: IrrelevantService | None = None,
         duplicate_comparison_service: DuplicateComparisonService | None = None,
         duplicate_resolution_service: DuplicateResolutionService | None = None,
+        export_service: ExportService | None = None,
+        export_controller: ExportTaskController | None = None,
+        export_enabled: bool = False,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -124,6 +130,18 @@ class PandaMainWindow(QMainWindow):
             self.duplicate_resolution_service = DuplicateResolutionService(
                 document_source, self.irrelevant_service
             )
+        self.export_service = export_service
+        if self.export_service is None and repository_capable:
+            self.export_service = ExportService(document_source, EXCEL_OUTPUT_PATH)
+        self.export_controller = export_controller
+        if (
+            self.export_controller is None
+            and self.export_service is not None
+            and export_enabled
+        ):
+            self.export_controller = ExportTaskController(
+                self.export_service, self.task_manager, parent=self
+            )
         self.task_model = TaskListModel(self.task_manager, self)
         self.document_model = DocumentTableModel(parent=self)
         self._documents: tuple[Document, ...] = ()
@@ -137,6 +155,7 @@ class PandaMainWindow(QMainWindow):
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self._build_ui()
         self._connect_operational_tasks()
+        self._connect_export_tasks()
         self.refresh()
         self.navigate(AppRoute.OVERVIEW)
 
@@ -229,6 +248,23 @@ class PandaMainWindow(QMainWindow):
                     self.inbox = view
                 else:
                     self.attention = view
+            elif definition.view_kind is RouteViewKind.READY:
+                if self.approval_service is None:
+                    view = QueueRoutePlaceholder(definition)
+                else:
+                    view = ReadyView(
+                        self.document_model,
+                        self.approval_service,
+                        workbook_path=(
+                            self.export_service.output_path
+                            if self.export_service is not None
+                            else str(EXCEL_OUTPUT_PATH)
+                        ),
+                    )
+                    view.openDocumentRequested.connect(self.open_workspace)
+                    view.batchApproved.connect(self._on_ready_batch_approved)
+                    view.exportRequested.connect(self._submit_export)
+                    self.ready = view
             else:
                 view = QueueRoutePlaceholder(definition)
             self._views[definition.route] = view
@@ -302,7 +338,7 @@ class PandaMainWindow(QMainWindow):
         except ValueError:
             return False
         view = self._views.get(route)
-        if not isinstance(view, DocumentQueueView):
+        if not isinstance(view, (DocumentQueueView, ReadyView)):
             return False
         ids = tuple(str(value) for value in ordered_visible_ids)
         if document_id not in ids or self._document_by_id(document_id) is None:
@@ -360,7 +396,7 @@ class PandaMainWindow(QMainWindow):
     def _return_from_workspace(self, origin_route: str, document_id: str) -> None:
         self.navigate(origin_route)
         view = self._views.get(AppRoute(origin_route))
-        if isinstance(view, DocumentQueueView) and document_id:
+        if isinstance(view, (DocumentQueueView, ReadyView)) and document_id:
             view.restore_selected_document_ids(self._workspace_origin_selection)
             view.focus_document(document_id, preserve_selection=True)
 
@@ -372,7 +408,7 @@ class PandaMainWindow(QMainWindow):
         except ValueError:
             return
         view = self._views.get(route)
-        if isinstance(view, DocumentQueueView):
+        if isinstance(view, (DocumentQueueView, ReadyView)):
             self.workspace.reconcile_queue(
                 view.ordered_visible_document_ids,
                 self._documents_by_id,
@@ -394,6 +430,41 @@ class PandaMainWindow(QMainWindow):
         self.operational_controller.availabilityChanged.connect(
             self._refresh_action_availability
         )
+
+    def _connect_export_tasks(self) -> None:
+        if self.export_controller is None:
+            return
+        self.export_controller.exportCompleted.connect(self._export_completed)
+        self.export_controller.exportFailed.connect(self._export_failed)
+        self.export_controller.availabilityChanged.connect(
+            self._refresh_export_availability
+        )
+
+    def _submit_export(self, document_ids: object) -> None:
+        if self.export_controller is None:
+            return
+        task_id = self.export_controller.submit_export(tuple(document_ids))
+        if task_id is not None:
+            self._refresh_export_availability()
+
+    def _on_ready_batch_approved(self, _document_ids: object) -> None:
+        self.refresh()
+
+    def _export_completed(self, result: dict) -> None:
+        if hasattr(self, "ready"):
+            self.ready.show_export_result(result)
+        self.refresh()
+
+    def _export_failed(self, message: str) -> None:
+        if hasattr(self, "ready"):
+            self.ready.show_export_error(message)
+
+    def _refresh_export_availability(self) -> None:
+        if hasattr(self, "ready"):
+            self.ready.set_export_pending(
+                self.export_controller is not None
+                and self.export_controller.has_pending_export
+            )
 
     def _submit_scan(self) -> None:
         if self.operational_controller is not None:
@@ -456,7 +527,7 @@ class PandaMainWindow(QMainWindow):
         return {
             route: view.selected_document_ids
             for route, view in self._views.items()
-            if isinstance(view, DocumentQueueView)
+            if isinstance(view, (DocumentQueueView, ReadyView))
         }
 
     def _restore_queue_selections(
@@ -464,7 +535,7 @@ class PandaMainWindow(QMainWindow):
     ) -> None:
         for route, document_ids in selections.items():
             view = self._views.get(route)
-            if isinstance(view, DocumentQueueView):
+            if isinstance(view, (DocumentQueueView, ReadyView)):
                 view.restore_selected_document_ids(document_ids)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
@@ -492,6 +563,8 @@ class PandaMainWindow(QMainWindow):
             return
         if self.operational_controller is not None:
             self.operational_controller.close()
+        if self.export_controller is not None:
+            self.export_controller.close()
         self.task_model.close()
         super().closeEvent(event)
 

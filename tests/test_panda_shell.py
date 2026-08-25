@@ -285,7 +285,7 @@ def test_run_selects_panda2_only_with_explicit_flag() -> None:
         result = run.main(["run.py", "--panda2"])
 
     assert result == 0
-    panda_window.assert_called_once_with(source)
+    panda_window.assert_called_once_with(source, export_enabled=True)
     legacy_window.assert_not_called()
     application_class.return_value.setStyleSheet.assert_not_called()
 

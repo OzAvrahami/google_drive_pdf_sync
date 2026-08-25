@@ -39,6 +39,7 @@ class BatchApprovalPlan:
     approvable_ids: tuple[str, ...]
     blocker_ids: tuple[str, ...]
     already_approved_ids: tuple[str, ...]
+    missing_ids: tuple[str, ...]
     ineligible_reasons: Mapping[str, tuple[str, ...]]
     validation_by_id: Mapping[str, ValidationResult]
 
@@ -150,6 +151,7 @@ class ApprovalService:
         approvable_ids: list[str] = []
         blockers: list[str] = []
         already_approved: list[str] = []
+        missing: list[str] = []
         ineligible: dict[str, tuple[str, ...]] = {}
         validations: dict[str, ValidationResult] = {}
         approvable_documents: list[Document] = []
@@ -157,7 +159,7 @@ class ApprovalService:
         for drive_file_id in dict.fromkeys(drive_file_ids):
             document = self._repository.get_by_drive_id(drive_file_id)
             if document is None:
-                ineligible[drive_file_id] = ("document_not_found",)
+                missing.append(drive_file_id)
                 continue
             eligibility = self.eligibility(document)
             if eligibility.already_approved:
@@ -179,6 +181,7 @@ class ApprovalService:
                 tuple(approvable_ids),
                 tuple(blockers),
                 tuple(already_approved),
+                tuple(missing),
                 ineligible,
                 validations,
             ),

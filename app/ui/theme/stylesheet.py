@@ -171,6 +171,10 @@ QFrame[pandaComponent="feedback"][variant="info"] {{ color: {c.informational}; b
 QFrame[pandaComponent="feedback"][variant="warning"] {{ color: {c.warning}; background: {c.warning_tint}; }}
 QFrame[pandaComponent="feedback"][variant="error"] {{ color: {c.error}; background: {c.error_tint}; }}
 QFrame[pandaComponent="feedback"][variant="success"] {{ color: {c.approval}; background: {c.approval_tint}; }}
+QFrame[pandaComponent="readyBatchBar"] {{
+    background: {c.brand_tint}; border: {b.hairline}px solid {c.brand_border_tint};
+    border-radius: {r.control}px;
+}}
 QFrame[pandaComponent="emptyState"] {{ background: {c.surface}; border: none; }}
 QLabel[pandaComponent="emptyIcon"] {{
     min-width: 52px; max-width: 52px; min-height: 52px; max-height: 52px;
