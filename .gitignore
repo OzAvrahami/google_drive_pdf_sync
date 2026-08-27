@@ -57,6 +57,14 @@ credentials/*
 htmlcov/
 .pytest_cache/
 
+# Private local digital-PDF corpus and generated diagnostics
+# Real invoices, reviewed ground truth, and benchmark output must never be
+# staged. Keep scripts, tests, and the non-sensitive manifest template tracked.
+tests/fixtures/pdf/**/*.pdf
+tests/fixtures/pdf/pdf_manifest.csv
+artifacts/pdf_benchmark.csv
+artifacts/pdf_benchmark.json
+
 # =========================
 # Local development-tool settings
 # =========================

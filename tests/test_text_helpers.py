@@ -72,6 +72,27 @@ class TestFixRtlLine:
         result = _fix_rtl_line("123456789 ח.פ")
         assert "123456789" in result
 
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("50008 סמ תינובשח", "חשבונית מס 50008"),
+            ('₪1,770.00 םולשתל כ"הס', 'סה"כ לתשלום ₪1,770.00'),
+            ('3,307.00:כ"הס', 'סה"כ:3,307.00'),
+            ('3,902.26:מ"עמ ללוכ כ"הס', 'סה"כ כולל מע"מ:3,902.26'),
+            ("01/03/2026:הדובע ךיראת", "תאריך עבודה:01/03/2026"),
+            ("308474246:רוטפ קסוע", "עוסק פטור:308474246"),
+            ('18.00%:מ"עמ', 'מע"מ:18.00%'),
+            ("support@example.com:ליימ", "מייל:support@example.com"),
+            ("https://example.com:רתא", "אתר:https://example.com"),
+            ("050-1234567:ןופלט", "טלפון:050-1234567"),
+            ("₪1,770.00:םוכס", "סכום:₪1,770.00"),
+            ("ABC-123:ההזמ", "מזהה:ABC-123"),
+            ("+972-50-1234567:ןופלט", "טלפון:+972-50-1234567"),
+        ],
+    )
+    def test_ltr_run_attached_to_visual_hebrew_is_preserved(self, raw, expected):
+        assert _fix_rtl_line(raw) == expected
+
     def test_word_order_reversed_for_mixed_line(self):
         # Input : Hebrew-word  Date
         # Output: Date  Hebrew-word  (word order reversed, Hebrew chars fixed)

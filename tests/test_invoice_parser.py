@@ -239,6 +239,31 @@ class TestClassifyDocumentType:
     def test_cheshbon_esek_accepted(self):
         assert classify_document_type(CHESHBON_ESEK_ICOUNT) == "חשבון עסקה"
 
+    @pytest.mark.parametrize(
+        "heading",
+        [
+            "חשבון עסקה 40331",
+            "חשבונית עסקה מספר 92804",
+            "חשבונית עיסקה תאריך: 10/04/2026",
+        ],
+    )
+    def test_transaction_invoice_heading_variants_are_accepted(self, heading):
+        assert classify_document_type(heading) == "חשבון עסקה"
+
+    def test_rivhit_charge_account_is_transaction_invoice(self):
+        assert classify_document_type("חשבון חיוב") == "חשבון עסקה"
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "נשלחה חשבונית קודמת עבור העסקה",
+            "פרטי עסקה ותיעוד חשבונית נמצאים במערכת",
+            "חשבון בנק מספר: 08/010307",
+        ],
+    )
+    def test_separate_generic_words_are_not_false_positives(self, text):
+        assert classify_document_type(text) is None
+
     def test_cheshbonit_mas_accepted(self):
         assert classify_document_type(CHESHBONIT_MAS_ICOUNT) == "חשבונית מס"
 
@@ -390,6 +415,38 @@ class TestExtractInvoiceNumber:
         text = "Invoice # INV05085197\nAsana Inc\n"
         assert _extract_invoice_number(text) == "INV05085197"
 
+    def test_transaction_invoice_number_outranks_order_number(self):
+        text = (
+            "מספר הזמנה: 38213\n"
+            "חשבונית עסקה מספר 92804\n"
+        )
+        assert _extract_invoice_number(text) == "92804"
+
+    def test_transaction_invoice_number_on_nearby_standalone_header_line(self):
+        text = (
+            "מספר הקצאה: חשבונית עיסקה תאריך: 10/04/2026\n"
+            "ח.פ.:516349982 דף: 1\n"
+            "6260004\n"
+            "מקור\n"
+        )
+        assert _extract_invoice_number(text) == "6260004"
+
+    def test_payment_request_direct_heading_number_inbal(self):
+        assert _extract_invoice_number("דרישת תשלום 1000\n") == "1000"
+
+    def test_payment_request_direct_heading_number_avia(self):
+        assert _extract_invoice_number("דרישת תשלום 40011\n") == "40011"
+
+    def test_charge_account_label_preserves_structured_slash_number(self):
+        text = "חשבון חיוב מספר: 08/010307 מקור\n"
+        assert _extract_invoice_number(text) == "08/010307"
+
+    def test_charge_account_label_does_not_capture_date_shaped_value(self):
+        assert _extract_invoice_number("חשבון חיוב מספר: 06/04/2026\n") is None
+
+    def test_unlabelled_slash_value_is_not_a_document_number(self):
+        assert _extract_invoice_number("טלפון: 08/010307\n") is None
+
     def test_no_number_returns_none(self):
         assert _extract_invoice_number("some text without an invoice number") is None
 
@@ -444,6 +501,28 @@ class TestExtractAmount:
     def test_priority_sehakol_mehir_format(self):
         assert _extract_amount(CHESHBONIT_MAS_WITH_KABALA_REF) == 8923.0
 
+    def test_amount_immediately_before_standalone_total_label(self):
+        text = "מכירות 1,119\n1,119\nסה\"כ ₪\n"
+        assert _extract_amount(text) == 1119.0
+
+    def test_amount_immediately_before_total_including_vat_label(self):
+        text = 'סה"כ ללא מע"מ 679.66\n18% מע"מ 122.34\n802\nסה"כ כולל מע"מ ₪\n'
+        assert _extract_amount(text) == 802.0
+
+    @pytest.mark.parametrize(
+        "label",
+        [
+            'סה"כ ללא מע"מ',
+            'סה"כ לפני מע"מ',
+        ],
+    )
+    def test_amount_before_non_final_total_label_is_not_used(self, label):
+        assert _extract_amount(f"679.66\n{label}\n") is None
+
+    def test_stronger_same_line_total_precedes_adjacent_total_fallback(self):
+        text = 'סה"כ לתשלום ₪2,000.00\n1,119\nסה"כ ₪\n'
+        assert _extract_amount(text) == 2000.0
+
     def test_no_amount_returns_none(self):
         assert _extract_amount("invoice text with no totals") is None
 
@@ -486,6 +565,59 @@ class TestExtractBusinessName:
     def test_priority_first_substantive_line(self):
         name = _extract_business_name(CHESHBONIT_MAS_WITH_KABALA_REF)
         assert name == 'פריוריטי סופטוור בע"מ'
+
+    def test_leading_merged_lekavod_entity_precedes_post_heading_table(self):
+        text = (
+            'לכבוד: איי.טי.אם מודלס בע"מ\n'
+            'פנדה הום בע״מ ח.פ.: 516052057\n'
+            'מספר עוסק: 515781219 שדרות נים ,2 ראשון לציון\n'
+            'חשבונית עסקה מספר 92804\n'
+            'תיאור סה"כ\n'
+            '7,512.00\n'
+        )
+        assert _extract_business_name(text) == 'איי.טי.אם מודלס בע"מ'
+
+    def test_table_heading_is_not_a_supplier_candidate(self):
+        text = (
+            "חשבונית עסקה מספר 92804\n"
+            'תיאור סה"כ\n'
+            "7,512.00\n"
+        )
+        assert _extract_business_name(text) is None
+
+    def test_inbal_document_metadata_is_not_selected_as_supplier(self):
+        text = (
+            "ענבל - ענבל גלבר ליווי עסקי\n"
+            "דרישת תשלום 1000\n"
+            "חתום דיגיטלית מקור 12/04/2026\n"
+            "לכבוד:\n"
+            'פנדה הום בע"מ\n'
+        )
+        assert _extract_business_name(text) == "ענבל גלבר ליווי עסקי"
+
+    def test_shilat_document_metadata_is_not_selected_as_supplier(self):
+        text = (
+            "שילת דדשי\n"
+            "חשבון עסקה 1009\n"
+            "חתום דיגיטלית מקור 09/04/2026\n"
+            "לכבוד:\n"
+            "פנדה הום בע''מ\n"
+        )
+        assert _extract_business_name(text) == "שילת דדשי"
+
+    def test_merged_limited_company_and_uppercase_brand_returns_legal_entity(self):
+        text = (
+            "מ.ב.ר.נ אחזקות בע''מ O2OYOURSHOP\n"
+            "חשבון חיוב מספר: 08/010307 מקור\n"
+        )
+        assert _extract_business_name(text) == 'מ.ב.ר.נ אחזקות בע"מ'
+
+    def test_mixed_case_text_after_limited_suffix_is_not_blindly_truncated(self):
+        text = (
+            'פנדה הום בע"מ agency) (Magnezi\n'
+            "חשבון עסקה 92454\n"
+        )
+        assert _extract_business_name(text) == 'פנדה הום בע"מ agency) (Magnezi'
 
 
 # ─── parse_invoice_text (integration) ────────────────────────────────────────

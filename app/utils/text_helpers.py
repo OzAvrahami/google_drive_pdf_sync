@@ -17,8 +17,9 @@ For each line that contains Hebrew:
   1. Split into whitespace-delimited tokens.
   2. Reverse the token sequence (fixes reversed word order).
   3. Within each token:
-       - If the token contains Hebrew characters  → reverse its characters
-         (fixes reversed character order inside Hebrew words).
+       - If the token contains Hebrew characters, protect embedded strong
+         LTR runs (numbers, dates, Latin identifiers, URLs/emails), reverse
+         the visual-order token, then restore those runs unchanged.
        - If the token contains NO Hebrew (digits, dates, currency, email, …)
          → leave it exactly as-is (preserves LTR-safe values like 02/02/2026,
          ₪2,921.68, phone numbers, IDs, email addresses).
@@ -42,10 +43,64 @@ import re
 # and the most common Hebrew presentation forms (U+FB1D–U+FB4E).
 _HEBREW_RE = re.compile(r"[\u05d0-\u05ea\u05f0-\u05f4\ufb1d-\ufb4e]")
 
+# Strong LTR runs that may be embedded in the same whitespace-delimited token
+# as visual-order Hebrew. Separators are included only when surrounded by LTR
+# content, so a boundary colon in ``3,307.00:כ\"הס`` remains outside the
+# protected span and lands between the normalized label and amount.
+_LTR_RUN_RE = re.compile(
+    r"""
+    (?:
+        (?:https?://|www\.)
+        [A-Za-z0-9][A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%+-]*
+      | [A-Za-z0-9][A-Za-z0-9._%+-]*
+        @[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,}
+      | [₪$€£]?[+-]?[0-9]+(?:[.,/:\-][0-9]+)*%?
+      | [A-Za-z0-9]+(?:[._/@+\-][A-Za-z0-9]+)+
+      | [A-Za-z]+
+    )
+    """,
+    re.VERBOSE,
+)
+
 
 def _has_hebrew(text: str) -> bool:
     """Return True if *text* contains at least one Hebrew character."""
     return bool(_HEBREW_RE.search(text))
+
+
+def _reverse_visual_token(token: str) -> str:
+    """Reverse visual-order Hebrew without reversing embedded LTR runs."""
+    if not _has_hebrew(token):
+        return token
+
+    protected: list[tuple[str, str]] = []
+    marker_codepoint = 0xE000
+
+    def protect(match: re.Match[str]) -> str:
+        nonlocal marker_codepoint
+        value = match.group(0)
+
+        # URL matching is permissive, but punctuation separating a URL from
+        # Hebrew belongs to the surrounding bidi token rather than the URL.
+        trailing = ""
+        while value and value[-1] in ":;,!?":
+            trailing = value[-1] + trailing
+            value = value[:-1]
+        if not value:
+            return match.group(0)
+
+        while chr(marker_codepoint) in token:
+            marker_codepoint += 1
+        marker = chr(marker_codepoint)
+        marker_codepoint += 1
+        protected.append((marker, value))
+        return marker + trailing
+
+    protected_token = _LTR_RUN_RE.sub(protect, token)
+    normalized = protected_token[::-1]
+    for marker, value in protected:
+        normalized = normalized.replace(marker, value)
+    return normalized
 
 
 def _fix_rtl_line(line: str) -> str:
@@ -58,10 +113,7 @@ def _fix_rtl_line(line: str) -> str:
         return line
 
     tokens = line.split()  # strips leading/trailing whitespace, collapses runs
-    fixed = [
-        token if not _has_hebrew(token) else token[::-1]
-        for token in reversed(tokens)
-    ]
+    fixed = [_reverse_visual_token(token) for token in reversed(tokens)]
     return " ".join(fixed)
 
 

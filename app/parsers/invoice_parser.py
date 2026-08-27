@@ -69,7 +69,13 @@ _RE_SUPPLIER_FORM = re.compile(
 )
 
 # Acceptance patterns (only reached when no exclusion pattern matched)
-_RE_ESEK    = re.compile(r'חשבון\s+עסקה')
+# Transaction-invoice headings legitimately appear as either "חשבון" or
+# "חשבונית", and with both common spellings "עסקה" / "עיסקה".
+_RE_ESEK    = re.compile(r'חשב(?:ון|ונית)\s+ע(?:י)?סקה')
+# Rivhit uses "חשבון חיוב" as the displayed title for its transaction invoice.
+# Keep this exact verified term separate from the broader transaction wording so
+# generic "חשבון <...>" phrases cannot become supported documents.
+_RE_HIYUV   = re.compile(r'חשבון\s+חיוב\b')
 _RE_MAS     = re.compile(r'חשבונית\s+מס(?!\s*קבלה)')   # negative-lookahead guard
 # Fix 1: typo variant "חשבוית מס" (missing ן) produced by certain PDF generators
 _RE_MAS_TYPO = re.compile(r'חשבוית\s+מס(?!\s*קבלה)')
@@ -102,7 +108,7 @@ def classify_document_type(text: str) -> Optional[str]:
         return "טופס פתיחת ספק"
 
     # ── Acceptance tier ────────────────────────────────────────────────────────
-    if _RE_ESEK.search(text):
+    if _RE_ESEK.search(text) or _RE_HIYUV.search(text):
         return "חשבון עסקה"
     if _RE_MAS.search(text) or _RE_MAS_TYPO.search(text) or _RE_TAX_EN.search(text):
         return "חשבונית מס"
@@ -125,12 +131,45 @@ _RE_NUM_FOOTER  = re.compile(
 )
 _RE_NUM_ENGLISH = re.compile(r'Invoice\s+(?:number|#|ID)\s*:?\s*([A-Za-z0-9]+)', re.IGNORECASE)
 
+# Rivhit charge accounts use an explicitly labelled structured number. Keep
+# this pattern semantic and require exactly one slash so a nearby date cannot
+# be consumed as the document number.
+_RE_NUM_CHARGE_ACCOUNT = re.compile(
+    r'חשבון\s+חיוב\s+מספר\s*:?\s*'
+    r'([A-Za-z0-9][A-Za-z0-9._-]{0,19}/[A-Za-z0-9][A-Za-z0-9._-]{1,19})'
+    r'(?=\s|$)',
+    re.IGNORECASE,
+)
+
 # Matches: "חשבונית מס מס' : 3087"  "חשבון עסקה מס' 4567"  "דרישת תשלום מס' :1234"
 # The doc-type keyword must precede the מס' label so that unrelated ERP fields
 # (מפתח, מזהה, מחסן, סוכן) are never mistaken for invoice numbers.
 _RE_NUM_MAS_LABEL = re.compile(
     r'(?:חשבון\s+עסקה|חשבונ[יו]ת\s+מס|דרישת\s+תשלום)'
     r'\s+מס[\'״\u05f4]?\s*:?\s*([A-Za-z0-9]{2,})',
+    re.IGNORECASE,
+)
+
+# A payment request may place its document number directly in the semantic
+# heading ("דרישת תשלום 1000") or use a compact # / footer separator.
+_RE_NUM_PAYMENT_REQUEST = re.compile(
+    r'דרישת\s+תשלום\s*'
+    r'(?:(?:מספר|מס[\'״\u05f4]?)\s*:?\s*|[/#]\s*)?'
+    r'([A-Za-z0-9]{2,})',
+    re.IGNORECASE,
+)
+
+# Transaction invoices legitimately use both חשבון/חשבונית and עסקה/עיסקה.
+# These high-priority patterns keep a semantically labelled document number
+# ahead of unrelated standalone references such as "מספר הזמנה".
+_RE_NUM_TRANSACTION_LABELED = re.compile(
+    r'חשב(?:ון|ונית)\s+ע(?:י)?סקה\s+(?:מספר\s+)?\(?([A-Za-z0-9]{3,})\)?',
+    re.IGNORECASE,
+)
+_RE_NUM_TRANSACTION_NEARBY = re.compile(
+    r'חשב(?:ון|ונית)\s+ע(?:י)?סקה[^\n]*\n'
+    r'(?:[^\n]*\n){0,2}?'
+    r'\s*([A-Za-z0-9]{3,})\s*(?=\n|$)',
     re.IGNORECASE,
 )
 
@@ -177,6 +216,20 @@ _AMOUNT_PATTERNS = [
 # Fix 5: allow optional colon after סה"כ (e.g. "סה"כ: 19,164.00 ₪")
 _RE_SEHAKOL_FALLBACK = re.compile(rf'סה[{_Q}]כ\s*:?\s*₪?\s*([\d,]+(?:\.\d+)?)\s*₪?')
 
+# Diagnostic-confirmed extraction shape where a standalone total value is
+# emitted immediately before a strong final-payable total/currency label.  The
+# accepted qualifiers mirror the existing final-total terminology above and
+# deliberately exclude pre-VAT/subtotal labels.  This remains below every
+# existing same-line total rule.
+_ADJACENT_FINAL_TOTAL_LABEL = (
+    rf'סה[{_Q}]כ(?:\s+לתשלום|\s+כולל(?:\s+מע[{_Q}]מ)?)?'
+)
+_RE_AMOUNT_BEFORE_TOTAL_LABEL = re.compile(
+    rf'^\s*[₪$€£]?\s*([\d,]+(?:\.\d+)?)\s*[₪$€£]?\s*\r?\n'
+    rf'\s*{_ADJACENT_FINAL_TOTAL_LABEL}\s*:?\s*[₪$€£]?\s*$',
+    re.MULTILINE,
+)
+
 _RE_MAT     = re.compile(r'מאת\s*:\s*(.+?)(?:\s+עבור\s*:|$)', re.MULTILINE)
 _RE_LEKAVOD = re.compile(r'(?:לכבוד|לידי)\s*:?\s*(.+)')
 _RE_BE_AM   = re.compile(rf'בע[{_Q}]מ')
@@ -213,8 +266,50 @@ _RE_NAME_PREFIX_NOISE = re.compile(
     re.IGNORECASE,
 )
 
+# A line made only from two or more common column labels is table structure,
+# not a business name. Requiring the whole line to consist of heading terms
+# avoids rejecting legal names that merely contain one such word.
+_TABLE_HEADER_TERM = rf'(?:תיאור|תאור|פירוט|פרטים|כמות|מחיר|סכום|סה[{_Q}]כ|ש\.)'
+_RE_TABLE_HEADER_LINE = re.compile(
+    rf'^(?:{_TABLE_HEADER_TERM}\s*){{2,}}$',
+    re.IGNORECASE,
+)
+
+# Full-line document state/source metadata is not an issuer name.  Keep the
+# expression intentionally structural and anchored so company names that
+# merely contain a generic word are unaffected.
+_RE_DOCUMENT_METADATA_LINE = re.compile(
+    r'^(?:'
+    r'חתום\s+דיגיטלית(?:\s+מקור)?'
+    r'|מקור(?:\s+חתום\s+דיגיטלית)?'
+    r'|מסמך\s+ממוחשב(?:\s+חתום\s+דיגיטלית)?'
+    r'|digitally\s+signed(?:\s+(?:original|source))?'
+    r'|(?:original|source)(?:\s+digitally\s+signed)?'
+    r'|computer(?:ized|ised)\s+document(?:\s+digitally\s+signed)?'
+    r')'
+    r'(?:\s+\d{1,2}[/.]\d{1,2}[/.]\d{2,4})?\s*$',
+    re.IGNORECASE,
+)
+
+# Some issuer headings repeat a short brand before the canonical name, e.g.
+# "ענבל - ענבל גלבר ליווי עסקי". Collapse only an exact repeated first token.
+_RE_DUPLICATED_NAME_PREFIX = re.compile(r'^(\S+)\s*-\s*\1(?=\s|$)\s*', re.IGNORECASE)
+
+# A PDF row can merge an Israeli legal entity with a separate compact brand
+# token. Trim only the narrow shape "<Hebrew entity> בע\"מ <UPPERCASE BRAND>";
+# ordinary prose or mixed-case suffix text remains untouched.
+_RE_MERGED_LEGAL_ENTITY_BRAND = re.compile(
+    rf'^(?P<entity>.*[\u05d0-\u05ea].*\s+בע(?:[{_Q}]|\'\'|``)מ)'
+    rf'\s+(?P<brand>[A-Z0-9][A-Z0-9._-]{{2,}})$'
+)
+_RE_LEGAL_SUFFIX_AT_END = re.compile(rf'בע(?:[{_Q}]|\'\'|``)מ$')
+
 
 def _extract_invoice_number(text: str) -> Optional[str]:
+    m = _RE_NUM_CHARGE_ACCOUNT.search(text)
+    if m:
+        logger.debug("invoice_number: charge-account label → %r", m.group(1))
+        return m.group(1)
     m = _RE_NUM_FOOTER.search(text)
     if m:
         logger.debug("invoice_number: footer pattern → %r", m.group(1))
@@ -226,6 +321,18 @@ def _extract_invoice_number(text: str) -> Optional[str]:
     m = _RE_NUM_MAS_LABEL.search(text)
     if m:
         logger.debug("invoice_number: מס' label → %r", m.group(1))
+        return m.group(1)
+    m = _RE_NUM_PAYMENT_REQUEST.search(text)
+    if m:
+        logger.debug("invoice_number: payment-request heading → %r", m.group(1))
+        return m.group(1)
+    m = _RE_NUM_TRANSACTION_LABELED.search(text)
+    if m:
+        logger.debug("invoice_number: transaction label → %r", m.group(1))
+        return m.group(1)
+    m = _RE_NUM_TRANSACTION_NEARBY.search(text)
+    if m:
+        logger.debug("invoice_number: nearby transaction header line → %r", m.group(1))
         return m.group(1)
     m = _RE_NUM_STANDALONE.search(text)
     if m:
@@ -280,12 +387,30 @@ def _extract_amount(text: str) -> Optional[float]:
             last_raw = m.group(1)
     if last is not None:
         logger.debug("amount: fallback (סה\"כ) matched %r → %s", last_raw, last)
-    else:
-        logger.debug("amount: no pattern matched — returning None")
-    return last
+        return last
+
+    adjacent = None
+    adjacent_raw = None
+    for m in _RE_AMOUNT_BEFORE_TOTAL_LABEL.finditer(text):
+        val = _parse_amount(m.group(1))
+        if val is not None:
+            adjacent = val
+            adjacent_raw = m.group(1)
+    if adjacent is not None:
+        logger.debug(
+            "amount: adjacent value-before-total fallback matched %r → %s",
+            adjacent_raw,
+            adjacent,
+        )
+        return adjacent
+
+    logger.debug("amount: no pattern matched — returning None")
+    return None
 
 
 def _extract_business_name(text: str) -> Optional[str]:
+    lines = text.splitlines()
+
     # 1. Explicit "מאת:" label
     m = _RE_MAT.search(text)
     if m:
@@ -304,11 +429,28 @@ def _extract_business_name(text: str) -> Optional[str]:
             if name and not _is_skip_line(remainder):
                 return name
 
+            # Some two-column PDFs merge the leading customer-section label
+            # with the issuer occupying the opposite side of the first
+            # substantive row. When the legal entity itself is the entire
+            # first content row (no post-בע"מ remainder), retain that explicit
+            # entity instead of scanning forward into the invoice table.
+            first_content = next(
+                (
+                    line.strip()
+                    for line in lines
+                    if line.strip() and not line.strip().startswith('---')
+                ),
+                None,
+            )
+            if not remainder and first_content == m.group(0).strip():
+                name = _clean_name(content)
+                if name and not _is_skip_line(name):
+                    return name
+
     # 3. Line immediately after the doc-type + number line
     # Only applies when the customer section (לכבוד/לידי) has NOT appeared
     # before the doc-type line — otherwise the supplier is above לכבוד: and
     # strategy 4 handles it better.
-    lines = text.splitlines()
     for i, line in enumerate(lines):
         is_doc_line = (
             _RE_ESEK.search(line) or _RE_MAS.search(line) or _RE_MAS_TYPO.search(line)
@@ -561,6 +703,10 @@ def _clean_name(raw: str) -> Optional[str]:
     # Fix 6: strip watermark prefixes before trailing-noise removal
     cleaned = _RE_NAME_PREFIX_NOISE.sub('', raw)
     cleaned = _RE_TRAILING_NOISE.sub('', cleaned).strip()
+    cleaned = _RE_DUPLICATED_NAME_PREFIX.sub(r'\1 ', cleaned).strip()
+    merged = _RE_MERGED_LEGAL_ENTITY_BRAND.fullmatch(cleaned)
+    if merged:
+        cleaned = _RE_LEGAL_SUFFIX_AT_END.sub('בע"מ', merged.group('entity'))
     return cleaned if len(cleaned) >= 2 else None
 
 
@@ -569,6 +715,10 @@ def _is_skip_line(line: str) -> bool:
     if not s or len(s) < 2 or len(s) > 80:
         return True
     if s in {"מקור", "מסמך ממוחשב", "מסמך", "חתימה:"}:
+        return True
+    if _RE_TABLE_HEADER_LINE.fullmatch(s):
+        return True
+    if _RE_DOCUMENT_METADATA_LINE.fullmatch(s):
         return True
     if _RE_SKIP_LINE.match(s):
         return True
