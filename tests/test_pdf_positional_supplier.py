@@ -10,7 +10,10 @@ import pytest
 
 import app.parsers.supplier_validator as supplier_validator
 from app.parsers.invoice_parser import parse_invoice_text
-from app.parsers.pdf_layout import apply_positional_supplier_override
+from app.parsers.pdf_layout import (
+    apply_positional_supplier_override,
+    has_positional_supplier_ambiguity,
+)
 from app.parsers.pdf_parser import extract_text_from_pdf
 from app.services.pdf_corpus_service import correctness_for_record
 
@@ -94,6 +97,16 @@ def test_verified_positional_target_uses_ground_truth_supplier(sha256: str) -> N
         assert parsed[field] == before[field]
 
 
+@pytest.mark.parametrize("sha256", POSITIONAL_TARGET_SHAS)
+def test_text_preflight_retains_verified_positional_target(sha256: str) -> None:
+    _row, path = _fixture(sha256)
+    text = extract_text_from_pdf(str(path))
+    parsed = parse_invoice_text(text, correction_map={"version": 1, "fields": {}})
+
+    assert parsed is not None
+    assert has_positional_supplier_ambiguity(text, parsed["business_name"]) is True
+
+
 @pytest.mark.parametrize("sha256", POSITIONAL_NEGATIVE_CONTROL_SHAS)
 def test_verified_correct_supplier_is_not_overridden(sha256: str) -> None:
     row, path = _fixture(sha256)
@@ -107,6 +120,29 @@ def test_verified_correct_supplier_is_not_overridden(sha256: str) -> None:
 
     assert resolution is None
     assert parsed == before
+
+
+@pytest.mark.parametrize("sha256", POSITIONAL_NEGATIVE_CONTROL_SHAS)
+def test_text_preflight_rejects_verified_correct_supplier(sha256: str) -> None:
+    _row, path = _fixture(sha256)
+    text = extract_text_from_pdf(str(path))
+    parsed = parse_invoice_text(text, correction_map={"version": 1, "fields": {}})
+
+    assert parsed is not None
+    assert has_positional_supplier_ambiguity(text, parsed["business_name"]) is False
+
+
+def test_text_preflight_requires_supplier_on_next_substantive_addressee_row() -> None:
+    text = (
+        "לכבוד: ספק שנמצא בצד הנגדי\n"
+        "לקוח ממוזג BRAND\n"
+        "עוסק מורשה 123456789\n"
+        "ח.פ/ת.ז 987654321\n"
+        "חשבון עסקה 1000\n"
+    )
+
+    assert has_positional_supplier_ambiguity(text, "לקוח ממוזג BRAND") is True
+    assert has_positional_supplier_ambiguity(text, "ספק שנמצא בצד הנגדי") is False
 
 
 def test_skipped_document_cannot_receive_positional_supplier_override() -> None:

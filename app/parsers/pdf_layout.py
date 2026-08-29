@@ -99,6 +99,34 @@ def has_required_layout_signals(normalized_text: str) -> bool:
     )
 
 
+def has_positional_supplier_ambiguity(
+    normalized_text: str,
+    current_supplier: str | None,
+) -> bool:
+    """Return whether text parsing may have selected the addressee as supplier.
+
+    The validated ambiguity shape has the parsed supplier on the first
+    substantive line after a line containing the addressee anchor.  This
+    deliberately cheap gate only decides whether the strict geometry analysis
+    is worth running; it does not propose or validate a replacement supplier.
+    """
+
+    if not current_supplier or not has_required_layout_signals(normalized_text):
+        return False
+
+    lines = [
+        line.strip()
+        for line in normalized_text.splitlines()
+        if line.strip() and not line.strip().startswith("--- PAGE")
+    ]
+    current_normalized = _comparison_supplier(current_supplier)
+    return any(
+        _RE_ADDRESSEE.search(line)
+        and _comparison_supplier(lines[index + 1]) == current_normalized
+        for index, line in enumerate(lines[:-1])
+    )
+
+
 def _word_center(word: Mapping[str, Any]) -> float:
     return (float(word.get("x0") or 0.0) + float(word.get("x1") or 0.0)) / 2
 
@@ -538,9 +566,9 @@ def apply_positional_supplier_override(
 
     if not parsed or not parsed.get("business_name"):
         return None
-    if not has_required_layout_signals(normalized_text):
-        return None
     before_supplier = str(parsed["business_name"])
+    if not has_positional_supplier_ambiguity(normalized_text, before_supplier):
+        return None
     try:
         observations = analyze_pdf_layout(
             pdf_path,
