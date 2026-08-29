@@ -495,6 +495,102 @@ QFrame[pandaComponent="workspaceReadOnlyActions"] {{
     background: {c.surface_secondary}; border: none;
     border-top: {b.hairline}px solid {c.border_primary};
 }}
+QPushButton[pandaComponent="developerToolButton"] {{
+    min-height: {h.compact_button_height}px; color: {c.navigation_text};
+    background: transparent; border: {b.hairline}px solid {c.navigation_border};
+    border-radius: {r.control}px; text-align: right; padding: 0 10px;
+}}
+QPushButton[pandaComponent="developerToolButton"]:hover,
+QPushButton[pandaComponent="developerToolButton"]:focus {{
+    color: {c.text_on_color}; background: {c.navigation_task};
+    border-color: {c.navigation_accent};
+}}
+QPushButton[pandaComponent="developerToolButton"][active="true"] {{
+    color: {c.text_on_color}; background: {c.navigation_active};
+    border-color: {c.navigation_accent};
+}}
+QWidget[pandaComponent="benchmarkPage"] {{ background: {c.application_background}; border: none; }}
+QFrame[pandaComponent="benchmarkHeader"],
+QFrame[pandaComponent="benchmarkFilters"] {{
+    background: {c.surface}; border: none;
+    border-bottom: {b.hairline}px solid {c.border_primary};
+}}
+QLabel[pandaComponent="benchmarkMetric"] {{
+    color: {c.text_body}; background: {c.surface_secondary};
+    border: {b.hairline}px solid {c.border_secondary};
+    border-radius: {r.control}px; padding: 6px 10px;
+}}
+QComboBox[pandaComponent="benchmarkFilter"] {{
+    min-height: {h.compact_input_height}px; padding: 0 9px;
+    color: {c.text_primary}; background: {c.surface};
+    border: {b.hairline}px solid {c.border_control}; border-radius: {r.control}px;
+}}
+QComboBox[pandaComponent="benchmarkFilter"]:focus {{
+    border: {b.focus}px solid {c.focus}; background: {c.focus_ring};
+}}
+QLabel[pandaComponent="benchmarkNotice"] {{
+    padding: 7px 16px; background: {c.surface_secondary};
+    border-bottom: {b.hairline}px solid {c.border_secondary}; color: {c.text_body};
+}}
+QLabel[pandaComponent="benchmarkNotice"][state="success"] {{
+    color: {c.approval}; background: {c.approval_tint};
+}}
+QFrame[pandaComponent="benchmarkCorpusList"],
+QFrame[pandaComponent="benchmarkReviewPanel"],
+QWidget[pandaComponent="benchmarkReviewBody"],
+QScrollArea[pandaComponent="benchmarkReviewScroll"] {{
+    background: {c.surface}; border: none;
+}}
+QFrame[pandaComponent="benchmarkCorpusList"] {{
+    border: {b.hairline}px solid {c.border_primary}; border-radius: {r.panel}px;
+}}
+QListWidget[pandaComponent="benchmarkCorpusListView"] {{
+    background: {c.surface}; border: none; outline: 0;
+}}
+QListWidget[pandaComponent="benchmarkCorpusListView"]::item {{
+    padding: 8px; border-bottom: {b.hairline}px solid {c.border_row};
+}}
+QListWidget[pandaComponent="benchmarkCorpusListView"]::item:selected {{
+    color: {c.text_primary}; background: {c.selection};
+    border-left: {b.selected_marker}px solid {c.brand};
+}}
+QListWidget[pandaComponent="benchmarkCorpusListView"]:focus {{
+    border: {b.focus}px solid {c.focus};
+}}
+QFrame[pandaComponent="benchmarkReviewPanel"] {{
+    border: {b.hairline}px solid {c.border_primary}; border-radius: {r.panel}px;
+}}
+QFrame[pandaComponent="benchmarkReviewSummary"],
+QFrame[pandaComponent="benchmarkReviewActions"] {{
+    background: {c.surface_secondary}; border: none;
+}}
+QFrame[pandaComponent="benchmarkReviewSummary"] {{
+    border-bottom: {b.hairline}px solid {c.border_primary};
+}}
+QFrame[pandaComponent="benchmarkReviewActions"] {{
+    border-top: {b.hairline}px solid {c.border_primary};
+}}
+QFrame[pandaComponent="benchmarkReviewField"] {{
+    background: {c.surface}; border: {b.hairline}px solid {c.border_secondary};
+    border-radius: {r.control}px;
+}}
+QFrame[pandaComponent="benchmarkReviewField"][comparisonState="correct"] {{
+    background: {c.approval_tint}; border-color: {c.approval_tint};
+}}
+QFrame[pandaComponent="benchmarkReviewField"][comparisonState="mismatch"] {{
+    background: {c.error_tint}; border-color: {c.error_tint};
+}}
+QLabel[pandaComponent="benchmarkComparisonState"][comparisonState="correct"] {{ color: {c.approval}; }}
+QLabel[pandaComponent="benchmarkComparisonState"][comparisonState="mismatch"] {{ color: {c.error}; }}
+QLabel[pandaComponent="benchmarkDocumentState"] {{
+    padding: 8px; border-radius: {r.control}px; background: {c.surface_secondary};
+}}
+QLabel[pandaComponent="benchmarkDocumentState"][state="warning"] {{
+    color: {c.warning}; background: {c.warning_tint};
+}}
+QLabel[pandaComponent="benchmarkDocumentState"][state="info"] {{
+    color: {c.informational}; background: {c.brand_tint};
+}}
 """
 
 

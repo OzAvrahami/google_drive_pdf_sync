@@ -26,6 +26,7 @@ from app.clients.drive_client import get_drive_service, get_folder_pdf_hierarchy
 from app.state.state_manager import StateManager
 from app.utils.pdf_downloader import download_pdfs, resolve_local_path
 from app.parsers.pdf_parser import extract_text_from_pdf
+from app.parsers.pdf_layout import apply_positional_supplier_override
 from app.parsers.invoice_parser import classify_document_type, parse_invoice_text
 from app.models.record import InvoiceRecord
 from app.writers.excel_writer import append_records
@@ -80,6 +81,12 @@ def main() -> None:
             text      = extract_text_from_pdf(local_path)
             doc_type  = classify_document_type(text)
             parsed    = parse_invoice_text(text)
+            if parsed:
+                apply_positional_supplier_override(
+                    parsed,
+                    text,
+                    pdf_path=local_path,
+                )
 
             if parsed:
                 rec.status         = "processed"

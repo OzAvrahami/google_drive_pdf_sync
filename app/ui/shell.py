@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Protocol
 
 from PySide6.QtCore import Qt, Signal
@@ -26,8 +27,10 @@ from app.application.duplicate_comparison_service import DuplicateComparisonServ
 from app.application.duplicate_resolution_service import DuplicateResolutionService
 from app.application.irrelevant_service import IrrelevantService
 from app.application.workspace_approval_service import WorkspaceApprovalService
-from app.config import EXCEL_OUTPUT_PATH
+from app.config import BASE_DIR, EXCEL_OUTPUT_PATH
 from app.models.document import Document
+from app.services.pdf_corpus_service import PdfCorpusService
+from app.ui.benchmark import PdfBenchmarkPage
 from app.ui.components import ButtonVariant, NavigationRail, PandaButton
 from app.ui.models.document_table_model import DocumentTableModel
 from app.ui.models.queue_policy import QueueRoute, calculate_queue_counts
@@ -74,6 +77,8 @@ class PandaMainWindow(QMainWindow):
         export_service: ExportService | None = None,
         export_controller: ExportTaskController | None = None,
         export_enabled: bool = False,
+        pdf_corpus_service: PdfCorpusService | None = None,
+        pdf_corpus_root: Path | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -144,6 +149,9 @@ class PandaMainWindow(QMainWindow):
                 self.export_service, self.task_manager, parent=self
             )
         self.task_model = TaskListModel(self.task_manager, self)
+        self.pdf_corpus_service = pdf_corpus_service or PdfCorpusService(
+            pdf_corpus_root or (BASE_DIR / "tests" / "fixtures" / "pdf")
+        )
         self.document_model = DocumentTableModel(parent=self)
         self._documents: tuple[Document, ...] = ()
         self._documents_by_id: dict[str, Document] = {}
@@ -172,6 +180,10 @@ class PandaMainWindow(QMainWindow):
     def workspace_active(self) -> bool:
         return self.mode_stack.currentWidget() is self.workspace
 
+    @property
+    def benchmark_active(self) -> bool:
+        return self.mode_stack.currentWidget() is self.benchmark_page
+
     def view_for(self, route: AppRoute | str) -> QWidget:
         return self._views[AppRoute(route)]
 
@@ -198,6 +210,7 @@ class PandaMainWindow(QMainWindow):
 
         self.navigation = NavigationRail(self.task_model)
         self.navigation.routeRequested.connect(self.navigate)
+        self.navigation.benchmarkRequested.connect(self.open_benchmark)
         shell_layout.addWidget(self.navigation)
 
         self.header = QFrame()
@@ -295,6 +308,9 @@ class PandaMainWindow(QMainWindow):
         self.workspace.documentSaved.connect(self.refresh_document)
         self.workspace.documentApproved.connect(self.refresh_document)
         self.mode_stack.addWidget(self.workspace)
+        self.benchmark_page = PdfBenchmarkPage(self.pdf_corpus_service)
+        self.benchmark_page.backRequested.connect(self._return_from_benchmark)
+        self.mode_stack.addWidget(self.benchmark_page)
         content_layout.addWidget(self.mode_stack, 1)
 
         self.task_center = TaskCenter(self.task_model, self.task_manager, root)
@@ -309,6 +325,12 @@ class PandaMainWindow(QMainWindow):
             hasattr(self, "workspace")
             and self.workspace_active
             and not self.workspace.confirm_discard_changes("route")
+        ):
+            return False
+        if (
+            hasattr(self, "benchmark_page")
+            and self.benchmark_active
+            and not self.benchmark_page.confirm_discard_changes("route")
         ):
             return False
         definition = route_definition(destination)
@@ -332,6 +354,19 @@ class PandaMainWindow(QMainWindow):
             )
         if changed:
             self.routeChanged.emit(destination.value)
+        return True
+
+    def open_benchmark(self) -> bool:
+        if (
+            hasattr(self, "workspace")
+            and self.workspace_active
+            and not self.workspace.confirm_discard_changes("benchmark")
+        ):
+            return False
+        self.mode_stack.setCurrentWidget(self.benchmark_page)
+        self.navigation.set_benchmark_active(True)
+        self.benchmark_page.open_page()
+        self.benchmark_page.setFocus()
         return True
 
     def open_workspace(
@@ -407,6 +442,10 @@ class PandaMainWindow(QMainWindow):
             view.restore_selected_document_ids(self._workspace_origin_selection)
             view.focus_document(document_id, preserve_selection=True)
 
+    def _return_from_benchmark(self) -> None:
+        self.benchmark_page.release_source()
+        self.navigate(self._current_route)
+
     def _reconcile_workspace(self, *, changed_document_id: str | None = None) -> None:
         if not hasattr(self, "workspace") or not self.workspace_active:
             return
@@ -426,7 +465,11 @@ class PandaMainWindow(QMainWindow):
         self._counts = calculate_queue_counts(self._documents)
         self.navigation.set_counts(self._counts)
         self.overview.refresh(self._documents)
-        if hasattr(self, "header_title") and not self.workspace_active:
+        if (
+            hasattr(self, "header_title")
+            and not self.workspace_active
+            and not self.benchmark_active
+        ):
             self.navigate(self._current_route)
 
     def _connect_operational_tasks(self) -> None:
@@ -576,6 +619,15 @@ class PandaMainWindow(QMainWindow):
         ):
             event.ignore()
             return
+        if (
+            hasattr(self, "benchmark_page")
+            and self.benchmark_active
+            and not self.benchmark_page.confirm_discard_changes("close")
+        ):
+            event.ignore()
+            return
+        if hasattr(self, "benchmark_page"):
+            self.benchmark_page.release_source()
         if self.operational_controller is not None:
             self.operational_controller.close()
         if self.export_controller is not None:

@@ -4,7 +4,8 @@ Usage from the repository root:
     python scripts/diagnose_pdf.py "<pdf-path>"
     python scripts/diagnose_pdf.py --words "<pdf-path>"
 
-The diagnostic-only word extraction is never passed into Panda's parser.
+Word geometry is kept separate from text parsing and is used only by Panda's
+strict positional supplier resolver after the normal text parser succeeds.
 Production-equivalent text is produced by ``extract_text_from_pdf``.
 """
 
@@ -28,6 +29,7 @@ from app.parsers.invoice_parser import (
     parse_invoice_text,
 )
 from app.parsers.pdf_parser import _RE_PUA, extract_text_from_pdf
+from app.parsers.pdf_layout import apply_positional_supplier_override
 from app.services.correction_map_service import load_correction_map
 from app.services.processing_service import _confidence
 from app.utils.text_helpers import normalize_rtl_text
@@ -90,6 +92,7 @@ def diagnose(pdf_path: Path, *, all_words: bool = False) -> int:
     raw_pages: list[str] = []
     normalized_pages: list[str] = []
     word_rows: list[dict[str, object]] = []
+    layout_pages: list[dict[str, object]] = []
 
     try:
         with pdfplumber.open(pdf_path) as pdf:
@@ -103,8 +106,16 @@ def diagnose(pdf_path: Path, *, all_words: bool = False) -> int:
                 cleaned_text = _RE_PUA.sub("", raw_text)
                 normalized_pages.append(normalize_rtl_text(cleaned_text))
 
-                # Diagnostic only: production does not call extract_words().
-                for word in page.extract_words():
+                page_words = page.extract_words()
+                layout_pages.append(
+                    {
+                        "page": page_number,
+                        "width": float(page.width),
+                        "height": float(page.height),
+                        "words": page_words,
+                    }
+                )
+                for word in page_words:
                     word_rows.append(
                         {
                             "page": page_number,
@@ -174,6 +185,12 @@ def diagnose(pdf_path: Path, *, all_words: bool = False) -> int:
     _prime_supplier_rules_read_only()
     correction_map = load_correction_map()
     parsed = parse_invoice_text(production_text, correction_map=correction_map)
+    if parsed:
+        apply_positional_supplier_override(
+            parsed,
+            production_text,
+            pages=layout_pages,
+        )
     document_type = classify_document_type(production_text)
     confidence = _confidence(parsed)
     status = _processing_status(document_type, parsed)

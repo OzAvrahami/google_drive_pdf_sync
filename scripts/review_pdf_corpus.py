@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
@@ -13,61 +12,15 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import diagnose_pdf_batch as batch
-
-
-FIELD_SPECS = (
-    ("expected_supplier", "Supplier", "business_name"),
-    ("expected_invoice_number", "Invoice number", "invoice_number"),
-    ("expected_invoice_date", "Date", "invoice_date"),
-    ("expected_amount", "Amount", "amount"),
+from app.services.pdf_corpus_service import (
+    REVIEW_FIELDS as FIELD_SPECS,
+    ManifestWriteError,
+    PdfCorpusService,
+    panda_field_text as _panda_text,
+    replace_manifest_row,
+    review_priority,
+    select_review_records,
 )
-
-
-def _panda_text(parser_key: str, value: Any) -> str:
-    if value is None:
-        return ""
-    if parser_key == "amount":
-        try:
-            return f"{Decimal(str(value)):.2f}"
-        except InvalidOperation:
-            pass
-    return str(value)
-
-
-def review_priority(record: Mapping[str, Any]) -> tuple[Any, ...]:
-    relative = str(record.get("relative_path") or "")
-    status_order = {"failed": 0, "needs_review": 1, "processed": 2}
-    source = str((record.get("source_detection") or {}).get("source_system", "Unknown"))
-    return (
-        0 if relative.startswith("_incoming/") else 1,
-        status_order.get(str(record.get("status")), 3),
-        float(record.get("confidence") or 0.0),
-        0 if source == "Unknown" else 1,
-        relative.casefold(),
-    )
-
-
-def select_review_records(
-    records: Sequence[Mapping[str, Any]],
-    *,
-    include_all: bool = False,
-    new_only: bool = False,
-    relative_path: str | None = None,
-) -> list[Mapping[str, Any]]:
-    selected = list(records)
-    if relative_path is not None:
-        normalized = Path(relative_path).as_posix()
-        return [record for record in selected if record.get("relative_path") == normalized]
-    if not include_all:
-        selected = [record for record in selected if record.get("reviewed") is not True]
-    if new_only:
-        selected = [
-            record
-            for record in selected
-            if str(record.get("relative_path") or "").startswith("_incoming/")
-        ]
-    return sorted(selected, key=review_priority)
-
 
 def review_record(
     row: Mapping[str, str],
@@ -101,24 +54,6 @@ def review_record(
         return None
     updated["reviewed"] = "true"
     return updated
-
-
-def replace_manifest_row(
-    rows: Sequence[Mapping[str, str]], updated: Mapping[str, str],
-) -> list[dict[str, str]]:
-    result: list[dict[str, str]] = []
-    replaced = False
-    for row in rows:
-        same = bool(updated.get("sha256")) and row.get("sha256") == updated.get("sha256")
-        same = same or row.get("relative_path") == updated.get("relative_path")
-        if same:
-            result.append({field: str(updated.get(field, "")) for field in batch.MANIFEST_FIELDS})
-            replaced = True
-        else:
-            result.append({field: str(row.get(field, "")) for field in batch.MANIFEST_FIELDS})
-    if not replaced:
-        result.append({field: str(updated.get(field, "")) for field in batch.MANIFEST_FIELDS})
-    return sorted(result, key=lambda item: item["relative_path"].casefold())
 
 
 def run(
@@ -157,6 +92,8 @@ def run(
         output_fn("No documents match the requested review queue.")
         return 0
 
+    service = PdfCorpusService(root)
+    service.reload()
     by_sha, by_path = batch.manifest_indexes(manifest_rows)
     for index, record in enumerate(selected, start=1):
         output_fn(f"\nDOCUMENT {index} / {len(selected)}")
@@ -170,8 +107,11 @@ def run(
         if updated is None:
             output_fn("Review stopped; this document was not marked reviewed.")
             return 0
-        manifest_rows = replace_manifest_row(manifest_rows, updated)
-        batch.atomic_write_manifest(manifest_rows, manifest_path)
+        service.save_review(
+            str(record.get("sha256") or ""),
+            {expected: updated.get(expected, "") for expected, _label, _parser in FIELD_SPECS},
+        )
+        manifest_rows = batch.read_manifest(manifest_path)
         by_sha, by_path = batch.manifest_indexes(manifest_rows)
         output_fn("Ground truth saved.")
     return 0
@@ -199,7 +139,7 @@ def main(arguments: list[str] | None = None) -> int:
             new_only=args.new_only,
             relative_path=args.relative_path,
         )
-    except batch.ManifestWriteError as exc:
+    except ManifestWriteError as exc:
         print(str(exc), file=sys.stderr)
         return 1
 

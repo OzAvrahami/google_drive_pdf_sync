@@ -1,0 +1,2 @@
+filename,relative_path,sha256,file_size,source_system,source_confidence,source_evidence,creator,producer,pdf_engine,rtl_pattern,reviewed,expected_supplier,expected_invoice_number,expected_invoice_date,expected_amount,notes
+synthetic_invoice.pdf,_incoming/synthetic_invoice.pdf,0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef,12345,Unknown,unknown,no defensible source-system evidence,,,Unknown,unknown,false,,,,,Synthetic example only; never place real customer data in this tracked template.

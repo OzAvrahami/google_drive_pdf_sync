@@ -19,6 +19,7 @@ from collections import Counter
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.parsers.pdf_parser import extract_text_from_pdf
+from app.parsers.pdf_layout import apply_positional_supplier_override
 from app.parsers.invoice_parser import classify_document_type, parse_invoice_text
 
 # ── Configuration ──────────────────────────────────────────────────────────────
@@ -79,6 +80,11 @@ def process_pdf(meta: dict) -> dict:
         row["_status"] = "processed"
         parsed = parse_invoice_text(text)
         if parsed:
+            apply_positional_supplier_override(
+                parsed,
+                text,
+                pdf_path=meta["full_path"],
+            )
             row["סוג קובץ"]   = _TYPE_LABELS.get(parsed.get("document_type", ""), doc_type)
             row["שם ספק"]     = parsed.get("business_name")  or ""
             row["תאריך מסמך"] = parsed.get("invoice_date")   or ""

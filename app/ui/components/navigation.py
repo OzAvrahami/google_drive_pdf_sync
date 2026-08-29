@@ -18,6 +18,8 @@ from app.ui.routes import AppRoute, ROUTES, RouteDefinition
 from app.ui.theme.icons import IconTone, icon_for
 from app.ui.models.task_list_model import TaskListModel
 from app.ui.tasks.task_dock import TaskDock
+from app.ui.components.buttons import ButtonVariant, PandaButton
+from app.ui.theme.icons import IconName
 from app.ui.theme.stylesheet import repolish, set_dynamic_property
 from app.ui.theme.tokens import LAYOUT, SPACING
 from app.ui.theme.typography import TypographyRole, apply_typography
@@ -127,6 +129,7 @@ class NavigationButton(QPushButton):
 class NavigationRail(QFrame):
     routeRequested = Signal(str)
     taskCenterRequested = Signal()
+    benchmarkRequested = Signal()
 
     def __init__(self, task_model: TaskListModel, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -181,6 +184,22 @@ class NavigationRail(QFrame):
         dock_container.setProperty("pandaComponent", "taskDockContainer")
         dock_layout = QVBoxLayout(dock_container)
         dock_layout.setContentsMargins(12, 12, 12, 12)
+        dock_layout.setSpacing(SPACING.adjacent)
+        self.benchmark_button = PandaButton(
+            "PDF Benchmark",
+            variant=ButtonVariant.DARK,
+            icon_name=IconName.DOCUMENT,
+        )
+        self.benchmark_button.setProperty("pandaComponent", "developerToolButton")
+        self.benchmark_button.setCheckable(True)
+        self.benchmark_button.setToolTip(
+            "סקירת אמת מידה מקומית לקורפוס PDF פרטי"
+        )
+        self.benchmark_button.setAccessibleDescription(
+            "כלי מפתחים מקומי; אינו חלק מתורי העבודה התפעוליים"
+        )
+        self.benchmark_button.clicked.connect(self.benchmarkRequested.emit)
+        dock_layout.addWidget(self.benchmark_button)
         self.task_dock = TaskDock(task_model)
         self.task_dock.taskCenterRequested.connect(self.taskCenterRequested.emit)
         dock_layout.addWidget(self.task_dock)
@@ -195,8 +214,16 @@ class NavigationRail(QFrame):
 
     def set_active_route(self, route: AppRoute | str) -> None:
         active = AppRoute(route)
+        self.set_benchmark_active(False)
         for item_route, button in self._buttons.items():
             button.set_active(item_route is active)
+
+    def set_benchmark_active(self, active: bool) -> None:
+        set_dynamic_property(self.benchmark_button, "active", bool(active))
+        self.benchmark_button.setChecked(bool(active))
+        if active:
+            for button in self._buttons.values():
+                button.set_active(False)
 
     def set_counts(self, counts: QueueCounts) -> None:
         for definition in ROUTES:

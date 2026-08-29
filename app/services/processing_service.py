@@ -24,6 +24,7 @@ from app.parsers.invoice_parser import (
     EXCLUDED_DOCUMENT_TYPES,
 )
 from app.parsers.pdf_parser import extract_text_from_pdf
+from app.parsers.pdf_layout import apply_positional_supplier_override
 from app.services.correction_map_service import load_correction_map
 from app.services.document_store import DocumentStore
 from app.services.duplicate_detection_service import detect_and_mark_duplicate
@@ -157,6 +158,19 @@ class ProcessingService:
         # 6. Parse invoice fields (with learned corrections applied automatically)
         logger.debug("Parsing invoice text for: %s", doc.file_name)
         parsed = parse_invoice_text(raw_text, correction_map=correction_map)
+        if parsed:
+            resolution = apply_positional_supplier_override(
+                parsed,
+                raw_text,
+                pdf_path=local_path,
+            )
+            if resolution:
+                logger.info(
+                    "Positional supplier resolution for %s: %r -> %r",
+                    doc.file_name,
+                    resolution.before_supplier,
+                    resolution.after_supplier,
+                )
         doc.extracted_data = parsed or {}
 
         logger.info(

@@ -19,6 +19,8 @@ from app.parsers.invoice_parser import (
     _extract_invoice_date,
     _extract_amount,
     _extract_business_name,
+    _clean_name,
+    _is_skip_line,
 )
 
 
@@ -455,6 +457,62 @@ class TestExtractInvoiceNumber:
 
 class TestExtractInvoiceDate:
 
+    def test_business_date_before_semantically_labeled_due_date(self):
+        text = (
+            "31/01/2026 לתשלום עד 31/03/2026\n"
+            "הופק ב 03/02/2026 09:40\n"
+        )
+        assert _extract_invoice_date(text) == "31/01/2026"
+
+    def test_due_date_alone_is_not_a_document_date(self):
+        assert _extract_invoice_date("לתשלום עד 31/03/2026") is None
+
+    def test_generation_footer_is_fallback_without_business_date(self):
+        assert _extract_invoice_date("הופק ב 03/02/2026 09:40") == "03/02/2026"
+
+    def test_explicit_document_date_outranks_structured_business_date(self):
+        text = (
+            "תאריך: 30/01/2026\n"
+            "31/01/2026 לתשלום עד 31/03/2026\n"
+            "הופק ב 03/02/2026 09:40\n"
+        )
+        assert _extract_invoice_date(text) == "30/01/2026"
+
+    def test_labeled_document_date_precedes_generation_footer(self):
+        text = (
+            "תאריך: 01/02/2026\n"
+            "לתשלום עד 01/03/2026\n"
+            "הופק ב 04/02/2026 10:45\n"
+        )
+        assert _extract_invoice_date(text) == "01/02/2026"
+
+    def test_header_document_date_precedes_generation_footer(self):
+        text = (
+            "לכבוד: 01/02/2026\n"
+            'פנדה הום בע"מ\n'
+            "חשבון עסקה 40018\n"
+            "לתשלום עד 01/03/2026\n"
+            "הופק ב 04/02/2026 10:45\n"
+        )
+        assert _extract_invoice_date(text) == "01/02/2026"
+
+    def test_standalone_date_after_document_heading_precedes_generation_footer(self):
+        text = (
+            "חשבון עסקה 40229\n"
+            "28/02/2026\n"
+            "מקור לתשלום עד 31/03/2026\n"
+            "הופק ב 03/03/2026 00:10\n"
+        )
+        assert _extract_invoice_date(text) == "28/02/2026"
+
+    def test_generation_footer_remains_fallback_when_only_other_date_is_due(self):
+        text = (
+            "חשבון עסקה 40331\n"
+            "לתשלום עד 28/02/2026\n"
+            "הופק ב 03/02/2026 13:54\n"
+        )
+        assert _extract_invoice_date(text) == "03/02/2026"
+
     def test_icount_footer_date(self):
         assert _extract_invoice_date(CHESHBON_ESEK_ICOUNT) == "03/02/2026"
 
@@ -530,6 +588,174 @@ class TestExtractAmount:
 # ─── _extract_business_name ───────────────────────────────────────────────────
 
 class TestExtractBusinessName:
+
+    def test_legal_entity_isolated_from_compact_brand_and_hebrew_tagline(self):
+        candidate = 'חברת דוגמה אחזקות בע\'\'מ BRAND123 המקום לעסקים'
+
+        assert _clean_name(candidate) == 'חברת דוגמה אחזקות בע"מ'
+
+    @pytest.mark.parametrize(
+        "candidate",
+        [
+            'חברת דוגמה בע"מ ישראל ובניו',
+            'חברת דוגמה בע"מ Brand Studio',
+        ],
+    )
+    def test_legal_company_trailing_text_without_structural_brand_shape_is_preserved(
+        self, candidate
+    ):
+        assert _clean_name(candidate) == candidate
+
+    def test_issuer_prefix_extracted_from_complete_document_heading(self):
+        text = (
+            "ספק שירותים לדוגמה חשבון עסקה 10509 )מקור(\n"
+            "ע.פ 123456789 חשבון עסקה: 10509\n"
+            "כתובת: רחוב הדוגמה 32\n"
+        )
+
+        assert _extract_business_name(text) == "ספק שירותים לדוגמה"
+
+    def test_labeled_email_prefix_in_document_heading_is_not_an_issuer(self):
+        text = (
+            "ספק בדיקה מסמך ממוחשב\n"
+            'דוא"ל: example@example.test חשבון עסקה 7266 )מקור(\n'
+            "עוסק מורשה: 123456789\n"
+            'לכבוד: חברת לקוח לדוגמה בע"מ\n'
+        )
+
+        assert _extract_business_name(text) == "ספק בדיקה"
+
+    @pytest.mark.parametrize(
+        "non_issuer_heading",
+        [
+            "פירוט שירות חשבון עסקה 10509",
+            "תיאור מוצר חשבון עסקה 10509",
+            "לכבוד: לקוח חשבון עסקה 10509",
+        ],
+    )
+    def test_structural_prefix_before_document_phrase_is_not_promoted(
+        self, non_issuer_heading
+    ):
+        text = (
+            f"{non_issuer_heading}\n"
+            'חברה אמיתית בע"מ\n'
+            "לכבוד: לקוח\n"
+        )
+
+        assert _extract_business_name(text) == 'חברה אמיתית בע"מ'
+
+    def test_monthly_commission_description_does_not_replace_merged_header_issuer(self):
+        text = (
+            'שירותי מדיה ישראל בע"מ לכבוד: פנדה הום בע"מ\n'
+            "קרן לדוגמה\n"
+            "חשבון עסקה 40250\n"
+            "30/04/2026\n"
+            "מקור לתשלום עד 31/05/2026\n"
+            "עמלות אפריל 2026\n"
+            "כמות פירוט מחיר סה\"כ\n"
+        )
+
+        assert _extract_business_name(text) == 'שירותי מדיה ישראל בע"מ'
+
+    def test_product_type_description_does_not_replace_header_legal_entity(self):
+        text = (
+            '08:30 01/04/2026, חשבונית עסקה מספר 93000_חברת לקוח לדוגמה בע"מ\n'
+            'לכבוד: חברת ספק לדוגמה בע"מ\n'
+            'חברת לקוח לדוגמה בע"מ ח.פ.: 123456789\n'
+            "חשבונית עסקה מספר 93000\n"
+            "תיאור סה\"כ\n"
+            "סוג מוצר:סושיאל מדיה\n"
+            "שם המיוצג:לקוח לדוגמה\n"
+        )
+
+        assert _extract_business_name(text) == 'חברת ספק לדוגמה בע"מ'
+
+    @pytest.mark.parametrize(
+        "line",
+        ["עמלות אפריל 2026", "סוג מוצר:סושיאל מדיה"],
+    )
+    def test_complete_service_description_lines_are_structural(self, line):
+        assert _is_skip_line(line) is True
+
+    @pytest.mark.parametrize(
+        "supplier",
+        ['עמלות ישראל בע"מ', 'שירותי מוצר ומדיה בע"מ'],
+    )
+    def test_commercial_words_inside_legal_supplier_name_are_not_structural(self, supplier):
+        assert _is_skip_line(supplier) is False
+
+    def test_customer_addressee_is_not_promoted_over_merged_header_issuer(self):
+        text = (
+            'סוכנות לדוגמה בע"מ לכבוד: חברת לקוח לדוגמה בע"מ\n'
+            "חשבון עסקה 40250\n"
+            "30/04/2026\n"
+            "מקור לתשלום עד 31/05/2026\n"
+            "עמלות אפריל 2026\n"
+        )
+
+        assert _extract_business_name(text) == 'סוכנות לדוגמה בע"מ'
+
+    @pytest.mark.parametrize("source_marker", ["מקור", "[מקור]", "]מקור["])
+    def test_standalone_source_marker_is_not_selected_as_supplier(self, source_marker):
+        text = (
+            'בס"ד\n'
+            'חברת מקור לדוגמה בע״מ\n'
+            "עוסק מורשה )ח.פ( : 123456789\n"
+            "חשבון עסקה 50053\n"
+            f"{source_marker}\n"
+            'לכבוד: חברת לקוח לדוגמה בע"מ\n'
+        )
+        assert _extract_business_name(text) == "חברת מקור לדוגמה בע״מ"
+
+    def test_bracketed_source_marker_after_customer_name_does_not_replace_issuer(self):
+        text = (
+            "ספק בדיקה\n"
+            "מותג בדיקה\n"
+            "עוסק מורשה מס.: 123456789\n"
+            'לכבוד: חברת לקוח לדוגמה בע"מ ]מקור[\n'
+            "חשבונית עסקה מספר 90045\n"
+            "פריטים:\n"
+        )
+        assert _extract_business_name(text) == "ספק בדיקה"
+
+    def test_source_prefixed_issuer_after_document_heading_uses_registration_evidence(self):
+        text = (
+            "חשבונית מס 50022\n"
+            "מקור ספקית בדיקה\n"
+            "לתשלום עד 31/03/2026 עוסק מורשה 123456789\n"
+            "רחוב הדוגמה ,23 עיר לדוגמה\n"
+        )
+
+        assert _extract_business_name(text) == "ספקית בדיקה"
+
+    def test_source_prefixed_issuer_requires_nearby_registration_evidence(self):
+        text = (
+            "חשבונית מס 50022\n"
+            "מקור שם שנראה אפשרי\n"
+            'חברה אמיתית בע"מ\n'
+            "פירוט שירות\n"
+        )
+
+        assert _extract_business_name(text) == 'חברה אמיתית בע"מ'
+
+    @pytest.mark.parametrize(
+        "metadata_line",
+        [
+            "מקור לתשלום עד 31/03/2026",
+            "מקור חתום דיגיטלית",
+            "מקור מסמך ממוחשב",
+            "מקור ספק 123456789",
+        ],
+    )
+    def test_source_prefixed_structural_metadata_is_not_promoted(self, metadata_line):
+        text = (
+            "חשבונית מס 50022\n"
+            f"{metadata_line}\n"
+            'חברה אמיתית בע"מ\n'
+            "עוסק מורשה 123456789\n"
+        )
+
+        assert _extract_business_name(text) == 'חברה אמיתית בע"מ'
 
     def test_mat_label(self):
         assert _extract_business_name(CHESHBON_ESEK_MAT_LABEL) == "מרגריטה שימנובסקי"

@@ -202,7 +202,13 @@ _RE_DATE_EN_LABELED = re.compile(
     re.IGNORECASE,
 )
 _RE_DATE_ANY      = re.compile(r'\b(\d{1,2}[/.]\d{1,2}[/.]\d{4})\b')
+_RE_DATE_ONLY_LINE = re.compile(r'^\s*(\d{1,2}[/.]\d{1,2}[/.]\d{2,4})\s*$')
 _RE_PAYMENT_DUE   = re.compile(r'לתשלום\s+עד|due\s+by|payment\s+due|due\s+on', re.IGNORECASE)
+_RE_DATE_BEFORE_PAYMENT_DUE = re.compile(
+    r'\b(\d{1,2}[/.]\d{1,2}[/.]\d{2,4})\b\s+'
+    r'לתשלום\s+עד\s+'
+    r'\d{1,2}[/.]\d{1,2}[/.]\d{2,4}\b'
+)
 
 _AMOUNT_PATTERNS = [
     # Primary: "סה"כ לתשלום: 3,902.26" — the final payable total.
@@ -234,6 +240,20 @@ _RE_MAT     = re.compile(r'מאת\s*:\s*(.+?)(?:\s+עבור\s*:|$)', re.MULTILIN
 _RE_LEKAVOD = re.compile(r'(?:לכבוד|לידי)\s*:?\s*(.+)')
 _RE_BE_AM   = re.compile(rf'בע[{_Q}]מ')
 _RE_CUSTOMER_SECTION = re.compile(r'לכבוד|לידי|שם\s+הלקוח|For\s+billing|Bill\s+To', re.IGNORECASE)
+_RE_STANDALONE_SOURCE_MARKER = re.compile(r'^(?:מקור|\[מקור\]|\]מקור\[)$')
+_RE_DECORATIVE_HEADER = re.compile(r'^בס["\'׳״]?ד$')
+_RE_SERVICE_DESCRIPTION_LINE = re.compile(
+    r'^(?:עמלות\s+\S+\s+\d{4}|סוג\s+מוצר\s*:\s*\S.*)$'
+)
+_RE_ISSUER_DOCUMENT_HEADING = re.compile(
+    r'^(?P<issuer>.+?)\s+'
+    r'חשב(?:ון|ונית)\s+ע(?:י)?סקה\s+'
+    r'(?:מס(?:פר)?\s*:?\s*)?'
+    r'[A-Za-z0-9][A-Za-z0-9/_-]*\s*'
+    r'(?:\(\s*מקור\s*\)|\)\s*מקור\s*\()\s*$'
+)
+_RE_SOURCE_PREFIXED_ISSUER = re.compile(r'^מקור\s+(?P<issuer>.+?)\s*$')
+_RE_ISSUER_REGISTRATION_EVIDENCE = re.compile(r'\bעוסק\s+(?:מורשה|פטור)\b')
 # Fix 3: added ^# (table header rows), מספר\s+X: (reference-number lines), שם\s*: (customer label)
 _RE_SKIP_LINE = re.compile(
     r'^(?:בגין|עוסק|ח\.פ|ת\.ז|לכבוד|לידי|טלפון|מקור|עמוד|הופק|תאריך|לתשלום|'
@@ -292,15 +312,17 @@ _RE_DOCUMENT_METADATA_LINE = re.compile(
 )
 
 # Some issuer headings repeat a short brand before the canonical name, e.g.
-# "ענבל - ענבל גלבר ליווי עסקי". Collapse only an exact repeated first token.
+# "דוגמה - דוגמה שירותים עסקיים". Collapse only an exact repeated first token.
 _RE_DUPLICATED_NAME_PREFIX = re.compile(r'^(\S+)\s*-\s*\1(?=\s|$)\s*', re.IGNORECASE)
 
 # A PDF row can merge an Israeli legal entity with a separate compact brand
-# token. Trim only the narrow shape "<Hebrew entity> בע\"מ <UPPERCASE BRAND>";
-# ordinary prose or mixed-case suffix text remains untouched.
+# token and, in some generators, a Hebrew tagline belonging to that brand.
+# The compact all-caps/digit brand token is required; ordinary prose or
+# mixed-case suffix text remains untouched.
 _RE_MERGED_LEGAL_ENTITY_BRAND = re.compile(
     rf'^(?P<entity>.*[\u05d0-\u05ea].*\s+בע(?:[{_Q}]|\'\'|``)מ)'
-    rf'\s+(?P<brand>[A-Z0-9][A-Z0-9._-]{{2,}})$'
+    rf'\s+(?P<brand>[A-Z0-9][A-Z0-9._-]{{2,}})'
+    rf'(?:\s+(?P<tagline>[\u05d0-\u05ea][\u05d0-\u05ea\s]{{2,}}))?$'
 )
 _RE_LEGAL_SUFFIX_AT_END = re.compile(rf'בע(?:[{_Q}]|\'\'|``)מ$')
 
@@ -349,18 +371,58 @@ def _extract_invoice_number(text: str) -> Optional[str]:
 
 
 def _extract_invoice_date(text: str) -> Optional[str]:
-    m = _RE_DATE_FOOTER.search(text)
-    if m:
-        return m.group(1)
-    m = _RE_DATE_FOOTER_EN.search(text)
-    if m:
-        return m.group(1)
+    # Explicit business-document labels outrank technical generation metadata.
     m = _RE_DATE_LABELED.search(text)
     if m:
         return _normalise_date(m.group(1))
     m = _RE_DATE_EN_LABELED.search(text)
     if m:
         return _normalise_date_en(m.group(1))
+
+    # Some visual header rows place the business-document date immediately
+    # before an explicitly labelled payment-due date.  The label governs only
+    # the second date, making the first one strong document-date evidence.
+    m = _RE_DATE_BEFORE_PAYMENT_DUE.search(text)
+    if m:
+        return _normalise_date(m.group(1))
+
+    # Some native-PDF layouts emit the document date either on the customer
+    # header row (the label occupies the opposite visual column) or as the
+    # standalone row immediately following the document heading.  These are
+    # structural business-date positions, not arbitrary first-date matches.
+    lines = text.splitlines()
+    for line in lines:
+        if not _RE_CUSTOMER_SECTION.search(line):
+            continue
+        for candidate in _RE_DATE_ANY.finditer(line):
+            context = line[max(0, candidate.start() - 40):candidate.start()]
+            if not _RE_PAYMENT_DUE.search(context):
+                return _normalise_date(candidate.group(1))
+
+    document_patterns = (_RE_ESEK, _RE_MAS, _RE_MAS_TYPO, _RE_TAX_EN, _RE_DARISHA)
+    for index, line in enumerate(lines[:-1]):
+        if not any(pattern.search(line) for pattern in document_patterns):
+            continue
+        next_index = index + 1
+        while next_index < len(lines) and not lines[next_index].strip():
+            next_index += 1
+        if next_index >= len(lines):
+            break
+        candidate = _RE_DATE_ONLY_LINE.fullmatch(lines[next_index])
+        if candidate:
+            return _normalise_date(candidate.group(1))
+
+    # A creation/generation timestamp is useful only when no stronger
+    # business-document date was found above.
+    m = _RE_DATE_FOOTER.search(text)
+    if m:
+        return m.group(1)
+    m = _RE_DATE_FOOTER_EN.search(text)
+    if m:
+        return m.group(1)
+
+    # Lowest-priority compatibility fallback for documents with no labels or
+    # generation footer.  Explicit payment-due contexts remain excluded.
     for m in _RE_DATE_ANY.finditer(text):
         ctx = text[max(0, m.start() - 30) : m.start()]
         if not _RE_PAYMENT_DUE.search(ctx):
@@ -410,6 +472,7 @@ def _extract_amount(text: str) -> Optional[float]:
 
 def _extract_business_name(text: str) -> Optional[str]:
     lines = text.splitlines()
+    document_patterns = (_RE_ESEK, _RE_MAS, _RE_MAS_TYPO, _RE_TAX_EN, _RE_DARISHA)
 
     # 1. Explicit "מאת:" label
     m = _RE_MAT.search(text)
@@ -418,7 +481,45 @@ def _extract_business_name(text: str) -> Optional[str]:
         if name:
             return name
 
-    # 2. "לכבוד: [customer בע"מ] [issuer]" — take text after first בע"מ
+    # 2. Some document headings have the bounded form
+    # "<issuer> <document type> <number> (source marker)".  Extract only a
+    # short, digit-free, non-structural prefix from a complete heading; this is
+    # intentionally narrower than splitting arbitrary text at document words.
+    for line in lines:
+        heading = _RE_ISSUER_DOCUMENT_HEADING.fullmatch(line.strip())
+        if not heading:
+            continue
+        name = _clean_name(heading.group('issuer'))
+        words = (name or '').split()
+        if (
+            name
+            and 2 <= len(words) <= 6
+            and not re.search(r'\d', name)
+            and ':' not in name
+            and '@' not in name
+            and not _is_skip_line(name)
+        ):
+            return name
+
+    # 3. Native two-column headers may merge the issuer and customer into one
+    # line: "[issuer legal entity] לכבוד: [customer]".  A completed legal
+    # entity before the customer label is the issuer candidate; never promote
+    # the addressee merely because later service text is structurally skipped.
+    for line in lines:
+        customer = _RE_CUSTOMER_SECTION.search(line)
+        if not customer or customer.start() == 0:
+            continue
+        prefix = _clean_name(line[:customer.start()].strip())
+        legal_suffix = _RE_BE_AM.search(prefix or "")
+        if (
+            prefix
+            and legal_suffix
+            and legal_suffix.end() == len(prefix)
+            and not _is_skip_line(prefix)
+        ):
+            return prefix
+
+    # 4. "לכבוד: [customer בע"מ] [issuer]" — take text after first בע"מ
     m = _RE_LEKAVOD.search(text)
     if m:
         content = m.group(1)
@@ -429,11 +530,10 @@ def _extract_business_name(text: str) -> Optional[str]:
             if name and not _is_skip_line(remainder):
                 return name
 
-            # Some two-column PDFs merge the leading customer-section label
-            # with the issuer occupying the opposite side of the first
-            # substantive row. When the legal entity itself is the entire
-            # first content row (no post-בע"מ remainder), retain that explicit
-            # entity instead of scanning forward into the invoice table.
+            # Some two-column PDFs put the legal entity on the entire customer
+            # row, with either no preceding content or only a document-title
+            # header. Retain that explicit entity instead of scanning forward
+            # into service/product rows.
             first_content = next(
                 (
                     line.strip()
@@ -442,12 +542,31 @@ def _extract_business_name(text: str) -> Optional[str]:
                 ),
                 None,
             )
-            if not remainder and first_content == m.group(0).strip():
+            customer_index = next(
+                (index for index, line in enumerate(lines) if m.group(0) in line),
+                None,
+            )
+            preceding_content = (
+                [
+                    line.strip()
+                    for line in lines[:customer_index]
+                    if line.strip() and not line.strip().startswith('---')
+                ]
+                if customer_index is not None
+                else []
+            )
+            title_only_before_customer = bool(preceding_content) and all(
+                any(pattern.search(line) for pattern in document_patterns)
+                for line in preceding_content
+            )
+            if not remainder and (
+                first_content == m.group(0).strip() or title_only_before_customer
+            ):
                 name = _clean_name(content)
                 if name and not _is_skip_line(name):
                     return name
 
-    # 3. Line immediately after the doc-type + number line
+    # 5. Line immediately after the doc-type + number line
     # Only applies when the customer section (לכבוד/לידי) has NOT appeared
     # before the doc-type line — otherwise the supplier is above לכבוד: and
     # strategy 4 handles it better.
@@ -457,6 +576,37 @@ def _extract_business_name(text: str) -> Optional[str]:
             or _RE_TAX_EN.search(line) or _RE_DARISHA.search(line)
         )
         if is_doc_line and re.search(r'[A-Za-z0-9]{3,}', line):
+            # A visual two-column header can merge a standalone source marker
+            # with the issuer occupying the opposite side of the same row:
+            # "מקור <issuer>".  Treat the suffix as an issuer only in this
+            # tightly bounded post-heading position and only when the next two
+            # rows contain explicit issuer-registration evidence.  This runs
+            # before the broad "מקור..." skip rule without weakening the
+            # standalone source-marker protection.
+            source_index = i + 1
+            while source_index < len(lines) and not lines[source_index].strip():
+                source_index += 1
+            if source_index < len(lines):
+                source_line = lines[source_index].strip()
+                source_match = _RE_SOURCE_PREFIXED_ISSUER.fullmatch(source_line)
+                if source_match:
+                    name = _clean_name(source_match.group('issuer'))
+                    words = (name or '').split()
+                    nearby = "\n".join(lines[source_index + 1:source_index + 3])
+                    if (
+                        name
+                        and 2 <= len(words) <= 6
+                        and len(name) <= 60
+                        and not re.search(r'\d', name)
+                        and ':' not in name
+                        and '@' not in name
+                        and not _RE_PAYMENT_DUE.search(name)
+                        and not any(pattern.search(name) for pattern in document_patterns)
+                        and not _is_skip_line(name)
+                        and _RE_ISSUER_REGISTRATION_EVIDENCE.search(nearby)
+                    ):
+                        return name
+
             # If substantive non-skip lines exist before the customer section,
             # strategy 4 can find the supplier there — skip strategy 3.
             # But if לכבוד: is the very first meaningful line (nothing useful above
@@ -465,12 +615,11 @@ def _extract_business_name(text: str) -> Optional[str]:
                 (k for k in range(i) if _RE_CUSTOMER_SECTION.search(lines[k])), None
             )
             if first_customer is not None:
-                _doc_pats = (_RE_ESEK, _RE_MAS, _RE_MAS_TYPO, _RE_TAX_EN, _RE_DARISHA)
                 supplier_above = any(
                     lines[k].strip()
                     and not lines[k].strip().startswith('---')
                     and not _is_skip_line(lines[k].strip())
-                    and not any(p.search(lines[k]) for p in _doc_pats)
+                    and not any(p.search(lines[k]) for p in document_patterns)
                     for k in range(first_customer)
                 )
                 if supplier_above:
@@ -482,7 +631,7 @@ def _extract_business_name(text: str) -> Optional[str]:
                 if candidate and not _is_skip_line(candidate):
                     return _clean_name(candidate)
 
-    # 4. First substantive line before the customer section
+    # 6. First substantive line before the customer section
     # Skip document-type indicator lines (e.g. "חשבונית מס מקור", "Invoice")
     # so the issuer name on the preceding/following line is returned instead.
     for line in lines:
@@ -714,7 +863,13 @@ def _is_skip_line(line: str) -> bool:
     s = line.strip()
     if not s or len(s) < 2 or len(s) > 80:
         return True
-    if s in {"מקור", "מסמך ממוחשב", "מסמך", "חתימה:"}:
+    if _RE_STANDALONE_SOURCE_MARKER.fullmatch(s):
+        return True
+    if _RE_DECORATIVE_HEADER.fullmatch(s):
+        return True
+    if _RE_SERVICE_DESCRIPTION_LINE.fullmatch(s):
+        return True
+    if s in {"מסמך ממוחשב", "מסמך", "חתימה:"}:
         return True
     if _RE_TABLE_HEADER_LINE.fullmatch(s):
         return True

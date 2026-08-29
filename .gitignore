@@ -64,6 +64,8 @@ tests/fixtures/pdf/**/*.pdf
 tests/fixtures/pdf/pdf_manifest.csv
 artifacts/pdf_benchmark.csv
 artifacts/pdf_benchmark.json
+artifacts/pdf_layout_details.txt
+artifacts/pdf_layout_supplier_prototype.json
 
 # =========================
 # Local development-tool settings

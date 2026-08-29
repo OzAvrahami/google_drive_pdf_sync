@@ -141,6 +141,36 @@ def test_navigation_button_click_activates_route(qapp) -> None:
     assert changed.count() == 1
 
 
+def test_pdf_benchmark_is_secondary_tool_not_seventh_business_route(qapp, tmp_path) -> None:
+    shell = PandaMainWindow(ReadOnlySource(), pdf_corpus_root=tmp_path)
+
+    shell.navigation.benchmark_button.click()
+
+    assert len(ROUTES) == 6
+    assert shell.current_route is AppRoute.OVERVIEW
+    assert shell.benchmark_active
+    assert shell.mode_stack.currentWidget() is shell.benchmark_page
+    assert shell.navigation.benchmark_button.property("active") is True
+    assert shell.navigation.task_dock.isVisibleTo(shell.navigation)
+
+    shell.benchmark_page.backRequested.emit()
+
+    assert not shell.benchmark_active
+    assert shell.stack.currentWidget() is shell.overview
+
+
+def test_pdf_benchmark_can_block_route_navigation_for_unsaved_review(qapp, tmp_path) -> None:
+    shell = PandaMainWindow(ReadOnlySource(), pdf_corpus_root=tmp_path)
+    shell.open_benchmark()
+
+    with patch.object(shell.benchmark_page, "confirm_discard_changes", return_value=False):
+        changed = shell.navigate(AppRoute.ATTENTION)
+
+    assert changed is False
+    assert shell.benchmark_active
+    assert shell.current_route is AppRoute.OVERVIEW
+
+
 def test_keyboard_enter_activates_focused_navigation_item(qapp) -> None:
     shell = PandaMainWindow(ReadOnlySource())
     shell.show()

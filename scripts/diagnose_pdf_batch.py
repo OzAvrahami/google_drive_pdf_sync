@@ -15,20 +15,17 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import json
 import logging
 import os
 import re
 import sys
-import tempfile
 import unicodedata
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from copy import deepcopy
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from statistics import mean
 from typing import Any, Iterable, Mapping, Sequence
@@ -41,7 +38,23 @@ from pdfminer.pdftypes import resolve1
 
 from app.parsers.invoice_parser import classify_document_type, parse_invoice_text
 from app.parsers.pdf_parser import _RE_PUA, extract_text_from_pdf
+from app.parsers.pdf_layout import apply_positional_supplier_override
 from app.services.correction_map_service import load_correction_map
+from app.services.pdf_corpus_service import (
+    MANIFEST_FIELDS,
+    DuplicatePdf,
+    ManifestWriteError,
+    atomic_write_manifest,
+    attach_manifest_state,
+    correctness_for_record,
+    discover_unique_pdfs,
+    ground_truth_mismatches,
+    manifest_indexes,
+    read_manifest,
+    scan_pdf_files,
+    sha256_file,
+    verified_accuracy,
+)
 from app.services.processing_service import _confidence
 from app.utils.text_helpers import normalize_rtl_text
 from scripts.diagnose_pdf import (
@@ -87,26 +100,6 @@ CSV_FIELDS = (
     "invoice_date_correct",
     "amount_correct",
     "fully_correct",
-)
-
-MANIFEST_FIELDS = (
-    "filename",
-    "relative_path",
-    "sha256",
-    "file_size",
-    "source_system",
-    "source_confidence",
-    "source_evidence",
-    "creator",
-    "producer",
-    "pdf_engine",
-    "rtl_pattern",
-    "reviewed",
-    "expected_supplier",
-    "expected_invoice_number",
-    "expected_invoice_date",
-    "expected_amount",
-    "notes",
 )
 
 CONFIDENCE_ORDER = {"unknown": 0, "low": 1, "medium": 2, "high": 3}
@@ -183,101 +176,6 @@ class OrganizationMove:
     file_size: int = 0
     unchanged: bool = False
     conflict: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class DuplicatePdf:
-    duplicate: Path
-    canonical: Path
-    sha256: str
-
-
-class ManifestWriteError(RuntimeError):
-    """Raised when the local corpus manifest cannot be replaced safely."""
-
-
-def scan_pdf_files(root: Path) -> list[Path]:
-    root = root.resolve()
-    if not root.is_dir():
-        raise NotADirectoryError(f"PDF corpus directory not found: {root}")
-    return sorted(
-        (
-            path
-            for path in root.rglob("*")
-            if path.is_file() and path.suffix.casefold() == ".pdf"
-        ),
-        key=lambda path: path.relative_to(root).as_posix().casefold(),
-    )
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def read_manifest(path: Path) -> list[dict[str, str]]:
-    if not path.is_file():
-        return []
-    with path.open("r", encoding="utf-8-sig", newline="") as handle:
-        return [
-            {field: row.get(field, "") for field in MANIFEST_FIELDS}
-            for row in csv.DictReader(handle)
-        ]
-
-
-def manifest_indexes(
-    rows: Sequence[Mapping[str, str]],
-) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
-    by_sha: dict[str, dict[str, str]] = {}
-    by_path: dict[str, dict[str, str]] = {}
-    for source_row in rows:
-        row = {field: str(source_row.get(field, "")) for field in MANIFEST_FIELDS}
-        if row["sha256"]:
-            by_sha.setdefault(row["sha256"], row)
-        if row["relative_path"]:
-            by_path[row["relative_path"]] = row
-    return by_sha, by_path
-
-
-def discover_unique_pdfs(
-    root: Path,
-    manifest_rows: Sequence[Mapping[str, str]] = (),
-) -> tuple[list[Path], list[DuplicatePdf], dict[Path, tuple[str, int]]]:
-    """Return one canonical path per SHA plus non-destructive duplicate reports."""
-    root = root.resolve()
-    _by_sha, by_path = manifest_indexes(manifest_rows)
-    identities: dict[Path, tuple[str, int]] = {}
-    grouped: dict[str, list[Path]] = defaultdict(list)
-    for path in scan_pdf_files(root):
-        identity = (sha256_file(path), path.stat().st_size)
-        identities[path] = identity
-        grouped[identity[0]].append(path)
-
-    canonical: list[Path] = []
-    duplicates: list[DuplicatePdf] = []
-    for digest, paths in grouped.items():
-        ordered = sorted(paths, key=lambda item: item.relative_to(root).as_posix().casefold())
-        existing = [
-            path
-            for path in ordered
-            if path.relative_to(root).as_posix() in by_path
-        ]
-        non_incoming = [
-            path
-            for path in ordered
-            if not path.relative_to(root).as_posix().startswith("_incoming/")
-        ]
-        chosen = (existing or non_incoming or ordered)[0]
-        canonical.append(chosen)
-        for path in ordered:
-            if path != chosen:
-                duplicates.append(DuplicatePdf(path, chosen, digest))
-    canonical.sort(key=lambda item: item.relative_to(root).as_posix().casefold())
-    duplicates.sort(key=lambda item: item.duplicate.relative_to(root).as_posix().casefold())
-    return canonical, duplicates, identities
 
 
 def _metadata_value(metadata: Mapping[str, Any], key: str) -> str:
@@ -661,6 +559,12 @@ def analyze_pdf(
             production_text,
             correction_map=dict(correction_map or {"version": 1, "fields": {}}),
         )
+        if parsed:
+            apply_positional_supplier_override(
+                parsed,
+                production_text,
+                pages=page_layout,
+            )
         confidence = _confidence(parsed)
         record["parser_result"] = deepcopy(parsed)
         if record["parser_result"] is None:
@@ -694,83 +598,6 @@ def analyze_corpus(
             )
             records.append(record)
     return records
-
-
-def _normalized_supplier(value: Any) -> str:
-    text = " ".join(str(value or "").split())
-    return (
-        text.replace("''", '"')
-        .replace("``", '"')
-        .replace("״", '"')
-        .replace("“", '"')
-        .replace("”", '"')
-    )
-
-
-def _normalized_date(value: Any) -> str | None:
-    text = str(value or "").strip().replace(".", "/")
-    for pattern in ("%d/%m/%Y", "%d/%m/%y"):
-        try:
-            return datetime.strptime(text, pattern).strftime("%d/%m/%Y")
-        except ValueError:
-            pass
-    return text or None
-
-
-def _normalized_amount(value: Any) -> Decimal | None:
-    text = str(value if value is not None else "").strip().replace(",", "")
-    if not text:
-        return None
-    try:
-        return Decimal(text).quantize(Decimal("0.01"))
-    except InvalidOperation:
-        return None
-
-
-def correctness_for_record(
-    record: Mapping[str, Any], manifest_row: Mapping[str, str] | None,
-) -> dict[str, bool | None]:
-    if not manifest_row or str(manifest_row.get("reviewed", "false")).casefold() != "true":
-        return {
-            "supplier_correct": None,
-            "invoice_number_correct": None,
-            "invoice_date_correct": None,
-            "amount_correct": None,
-            "fully_correct": None,
-        }
-    parser = record.get("parser_result") or {}
-    comparisons = {
-        "supplier_correct": _normalized_supplier(parser.get("business_name"))
-        == _normalized_supplier(manifest_row.get("expected_supplier")),
-        "invoice_number_correct": str(parser.get("invoice_number") or "").strip()
-        == str(manifest_row.get("expected_invoice_number") or "").strip(),
-        "invoice_date_correct": _normalized_date(parser.get("invoice_date"))
-        == _normalized_date(manifest_row.get("expected_invoice_date")),
-        "amount_correct": _normalized_amount(parser.get("amount"))
-        == _normalized_amount(manifest_row.get("expected_amount")),
-    }
-    comparisons["fully_correct"] = all(comparisons.values())
-    return comparisons
-
-
-def attach_manifest_state(
-    records: Sequence[dict[str, Any]], manifest_rows: Sequence[Mapping[str, str]],
-) -> None:
-    by_sha, by_path = manifest_indexes(manifest_rows)
-    for record in records:
-        row = by_sha.get(str(record.get("sha256") or "")) or by_path.get(
-            str(record.get("relative_path") or "")
-        )
-        reviewed = bool(row and str(row.get("reviewed", "false")).casefold() == "true")
-        record["reviewed"] = reviewed
-        for field in (
-            "expected_supplier",
-            "expected_invoice_number",
-            "expected_invoice_date",
-            "expected_amount",
-        ):
-            record[field] = str((row or {}).get(field, ""))
-        record.update(correctness_for_record(record, row))
 
 
 def select_new_records(
@@ -857,35 +684,6 @@ def write_benchmark_reports(
         json.dumps(payload, ensure_ascii=False, indent=2, default=str),
         encoding="utf-8",
     )
-
-
-def atomic_write_manifest(rows: Sequence[Mapping[str, str]], manifest_path: Path) -> None:
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w",
-            encoding="utf-8-sig",
-            newline="",
-            delete=False,
-            dir=manifest_path.parent,
-            prefix=f".{manifest_path.name}.",
-            suffix=".tmp",
-        ) as handle:
-            temporary = Path(handle.name)
-            writer = csv.DictWriter(handle, fieldnames=MANIFEST_FIELDS)
-            writer.writeheader()
-            writer.writerows(rows)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, manifest_path)
-    except (PermissionError, OSError) as exc:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
-        raise ManifestWriteError(
-            "Cannot update pdf_manifest.csv because it may be open in another "
-            "application. Close Excel and retry. No partial manifest was written."
-        ) from exc
 
 
 def write_manifest(
@@ -1094,67 +892,6 @@ def update_record_paths_after_organization(
         if destination:
             record["relative_path"] = destination
             record["filename"] = Path(destination).name
-
-
-def verified_accuracy(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    reviewed = [record for record in records if record.get("reviewed") is True]
-    fields = (
-        "supplier_correct",
-        "invoice_date_correct",
-        "invoice_number_correct",
-        "amount_correct",
-    )
-    result: dict[str, Any] = {
-        "reviewed": len(reviewed),
-        "total": len(records),
-        "fields": {
-            field: {
-                "correct": sum(record.get(field) is True for record in reviewed),
-                "total": len(reviewed),
-            }
-            for field in fields
-        },
-        "fully_correct": sum(record.get("fully_correct") is True for record in reviewed),
-        "by_source": {},
-    }
-    grouped: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
-    for record in reviewed:
-        grouped[str((record.get("source_detection") or {}).get("source_system", "Unknown"))].append(record)
-    result["by_source"] = {
-        source: {
-            "reviewed": len(items),
-            "fully_correct": sum(item.get("fully_correct") is True for item in items),
-        }
-        for source, items in sorted(grouped.items())
-    }
-    return result
-
-
-def ground_truth_mismatches(records: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    field_map = (
-        ("supplier_correct", "Supplier", "business_name", "expected_supplier"),
-        ("invoice_number_correct", "Invoice number", "invoice_number", "expected_invoice_number"),
-        ("invoice_date_correct", "Date", "invoice_date", "expected_invoice_date"),
-        ("amount_correct", "Amount", "amount", "expected_amount"),
-    )
-    mismatches: list[dict[str, Any]] = []
-    for record in records:
-        if record.get("reviewed") is not True:
-            continue
-        fields = []
-        parser = record.get("parser_result") or {}
-        for correctness, label, parser_key, expected_key in field_map:
-            if record.get(correctness) is False:
-                fields.append(
-                    {
-                        "field": label,
-                        "panda": parser.get(parser_key),
-                        "expected": record.get(expected_key, ""),
-                    }
-                )
-        if fields:
-            mismatches.append({"relative_path": record.get("relative_path"), "fields": fields})
-    return mismatches
 
 
 def _distribution(records: Sequence[Mapping[str, Any]], accessor) -> dict[str, int]:
