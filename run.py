@@ -14,6 +14,7 @@ from app.config import ensure_dirs
 from app.services.document_store import DocumentStore, DocumentStoreLoadError
 from app.ui.main_window import MainWindow
 from app.ui.shell import PandaMainWindow
+from app.version import APP_VERSION
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -43,6 +44,7 @@ def main(arguments: list[str] | None = None) -> int:
 
     app = QApplication(qt_arguments(startup_arguments))
     app.setApplicationName("Panda 2.0" if use_panda2 else "כלי חשבונאות")
+    app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("Internal")
 
     # Right-to-left UI for Hebrew

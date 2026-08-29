@@ -1,4 +1,4 @@
-"""Read-only Panda 2.0 Document Workspace components."""
+"""Panda 2.0 Document Workspace components."""
 
 from app.ui.workspace.field_display import FieldDisplay
 from app.ui.workspace.duplicate_comparison import DuplicateComparisonPanel

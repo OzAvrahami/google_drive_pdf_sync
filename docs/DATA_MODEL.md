@@ -1,186 +1,123 @@
 # Panda Data Model
 
-This document describes the current active desktop model and auxiliary runtime persistence. It does not prescribe a Panda 2.0 storage design.
+This document describes Panda **2.0.0** operational data and local persistence.
 
-## Primary Entity — Document
+## Version Contracts
 
-`Document` is a dataclass defined in `app/models/document.py`. One record represents one Google Drive PDF and its local processing lifecycle. `DocumentStore` in `app/services/document_store.py` serializes records to JSON.
+Panda has distinct version domains:
 
-### Identity
+| Contract | Current value | Source |
+| --- | --- | --- |
+| Application release | `2.0.0` | `app/version.py` |
+| Document-store schema | `2` | `DocumentStore.CURRENT_STORE_VERSION` |
+| Correction/rule/diagnostic formats | format-specific `1` or `2` | owning service/script |
 
-| Field | Meaning |
-| --- | --- |
-| `id` | Locally generated UUID for the document record. |
-| `drive_file_id` | Google Drive file ID; used for synchronization lookup and most UI/service references. |
+Application release changes do not automatically change storage schemas. The
+schema values are compatibility contracts for their own files, not SemVer.
 
-### Drive Metadata
+## Primary Entity: Document
 
-| Field | Meaning |
-| --- | --- |
-| `file_name` | Current filename reported by Drive. |
-| `folder_path` | Reconstructed relative Drive folder path. |
+`app/models/document.py` defines the operational `Document` record.
 
-Drive modification time is used during scanning but is not stored as a dedicated model field. The scanner compares it to local `updated_at`.
+### Identity and Source
 
-### Local File References
-
-| Field | Meaning |
-| --- | --- |
-| `local_path` | Path to the locally downloaded source PDF. |
-| `raw_text_path` | Path to the locally saved extracted-text file. |
+- stable local record ID;
+- Google Drive file ID;
+- source filename and folder path;
+- Drive modification metadata; and
+- local source/text paths.
 
 ### Workflow
 
-| Field | Meaning |
-| --- | --- |
-| `status` | Primary workflow status string. |
-| `confidence` | Parser/validation confidence from 0.0 to 1.0. |
-| `error_message` | Processing error or automatic-skip reason. |
+The main status values represented by queue policy include:
 
-### Invoice Fields
+- `new`;
+- `needs_review`;
+- `failed`;
+- `skipped`;
+- `processed`;
+- `corrected` where retained by legacy/current workflows;
+- `approved`;
+- `confirmed_irrelevant` / `excluded`; and
+- `exported`.
 
-| Field | Meaning |
-| --- | --- |
-| `supplier_name` | Parsed supplier/business name. |
-| `invoice_number` | Parsed document/invoice identifier. |
-| `invoice_date` | Parsed date string. |
-| `subtotal` | Subtotal when populated. |
-| `vat` | VAT when populated. |
-| `total` | Total amount used by the active processing/export flow. |
-| `description` | Optional description. |
+Duplicate suspicion is an orthogonal flag and routes the record to Needs
+Attention until resolved.
 
-No explicit currency field exists.
+### Structured Accounting Data
 
-### Parsing Metadata
+Documents retain parser output and effective workflow fields including:
 
-`extracted_data` stores the parser result and metadata. Current parser keys include document type, business/supplier name, invoice date, invoice number, amount, and supplier-validation details. The structure is flexible rather than a separately versioned schema.
+- document type;
+- supplier/business name;
+- invoice/document date;
+- invoice/document number;
+- amount;
+- confidence and error information; and
+- supplier-validation details in extracted parser data.
 
-### Corrected Data
+Human corrections are stored separately from raw parser output so the effective
+record can preserve review intent without rewriting production parsing logic.
 
-- `corrected_data` stores user-entered values keyed by field name.
-- `was_manually_corrected` indicates that a manual correction was recorded.
-- `Document.effective(field_name)` returns a corrected value when that key exists and is neither `None` nor an empty string; otherwise it falls back to the dataclass field.
+### Review, Duplicate, and Export State
 
-This fallback means an extracted value cannot currently be intentionally replaced by a clean empty value through `effective()`.
+The entity also records correction history/flags, duplicate candidate and
+resolution state, approval/export state, irrelevant/exclusion state, and
+timestamps used by queue and Overview projections.
 
-### Duplicate State
+## DocumentStore
 
-| Field | Meaning |
-| --- | --- |
-| `is_duplicate_suspected` | Routes a record to attention without replacing its primary status. |
-| `duplicate_confidence` | Secondary classification: `exact`, `high`, or empty. |
-| `suspected_duplicate_of` | List of matching records referenced by Google Drive file ID. |
+`app/services/document_store.py` is the operational source of truth. Its JSON
+shape is an object containing:
 
-Duplicate indicators are flags/secondary state, not primary workflow statuses.
+- integer `version`, currently exactly `2`; and
+- `documents`, an array of serialized document objects.
 
-### Export State
+Load behavior is fail-closed:
 
-- `exported_to_excel` is a boolean export marker.
-- `status = "exported"` is also assigned after successful export.
+- missing store starts empty;
+- unreadable or malformed JSON raises `DocumentStoreLoadError`;
+- non-object roots and non-array document collections are rejected;
+- missing, non-integer, or unsupported schema versions are rejected;
+- invalid document entries and duplicate/missing Drive IDs are rejected.
 
-The status and boolean duplicate the export fact and are maintained procedurally by `ExportWorker`.
+Writes occur under a lock, serialize to a temporary file, and replace the live
+store. There is no automatic migration from older/newer store versions.
 
-### Irrelevant / Exclusion State
+## Auxiliary Local State
 
-- `confirmed_irrelevant_at` records the explicit confirmation time.
-- `confirmed_irrelevant` is the current user-confirmed primary status.
-- `excluded` is a legacy equivalent retained on old records.
-- The separate excluded-file registry prevents a confirmed Drive ID from being rediscovered.
+Other local data includes:
 
-### Timestamps
+- downloaded source PDFs and extracted text;
+- correction logs/maps and learned supplier rules;
+- exclusion registry data;
+- legacy CLI state; and
+- generated Excel workbooks.
 
-| Field | Meaning |
-| --- | --- |
-| `created_at` | UTC ISO timestamp created with the local record. |
-| `updated_at` | UTC ISO timestamp refreshed by `touch()` during store upsert. |
-| `confirmed_irrelevant_at` | UTC timestamp for explicit irrelevant confirmation, when assigned. |
+These are operational artifacts, not application source.
 
-There are no dedicated processed, reviewed, approved, failed, retried, or exported timestamps.
+## Private PDF Corpus Model
 
-## Primary Workflow Statuses
+The developer corpus is separate from operational `DocumentStore` state.
+`tests/fixtures/pdf/pdf_manifest.csv` inventories unique PDF identities by
+SHA-256 and records source diagnostics plus optional human-reviewed expected
+fields.
 
-| Internal value | Current meaning | Typical entry | Typical next actions | Persisted? |
-| --- | --- | --- | --- | --- |
-| `new` | Discovered or requeued, not processed | Drive scan or retry | Process | Yes |
-| `processed` | Parsed with confidence at least 0.75 and no forced supplier review | Processing | Review, approve, retry, mark irrelevant | Yes |
-| `needs_review` | Low confidence or rejected supplier without fallback | Processing | Review/correct, approve, retry, mark irrelevant | Yes |
-| `failed` | Download/extraction/parsing exception | Processing/reprocessing | Retry, review, mark irrelevant | Yes |
-| `skipped` | Automatically classified as a non-target type; local files retained | Processing classification | Review, retry, mark irrelevant | Yes |
-| `approved` | User-approved and eligible for export | Review dialog or manual status choice | Export | Yes |
-| `exported` | Included in Excel output | Export worker | History/view/open | Yes |
-| `confirmed_irrelevant` | Explicitly confirmed irrelevant; excluded from future scans | Irrelevant/duplicate action | No normal retry | Yes |
-| `excluded` | Legacy name for permanent exclusion | Earlier implementation | No normal retry | Yes |
+Important states remain distinct:
 
-These values are not represented by an enum and no central transition graph is enforced. User-facing Hebrew labels are defined separately in UI code.
+- a PDF can be operationally processed without being reviewed;
+- blank expected data before review is not Ground Truth;
+- intentional blank/N/A is a human review decision;
+- correctness is `null` for unreviewed documents, not `false`; and
+- duplicate physical paths count once by SHA identity for accuracy.
 
-## Auxiliary Persistence
+The real manifest and real PDFs are local-only. A tracked example manifest
+contains schema guidance without private business data.
 
-All paths below are current runtime stores under the repository's `data/` tree and do not belong in Git.
+## Current Constraints
 
-| Store/artifact | Purpose |
-| --- | --- |
-| `data/documents.json` | Active `DocumentStore` payload and store version. |
-| `data/corrections_log.json` | History of manual field corrections used by learning behavior. |
-| `data/correction_map.json` | Global extracted-to-corrected substitutions applied after parsing. |
-| `data/learned_rules.json` | Inferred parsing rules from repeated corrections. |
-| `data/supplier_rules.json` | Learned supplier aliases, positive signals, and validation rules. |
-| `data/excluded_files.json` | Drive-ID registry for confirmed irrelevant/excluded files. |
-| `data/state/sync_state.json` | Separate legacy CLI synchronization state. |
-| `data/downloads/` | Locally downloaded source PDFs, retaining reconstructed folder layout. |
-| `data/text/` | Extracted text keyed by Drive ID. |
-| `data/output/invoices.xlsx` | Current Excel output. |
-
-`app/config.py` also defines `data/processed/`, `data/failed/`, and `data/settings.json`; the active desktop implementation does not provide a formal settings UI or a database-backed settings model.
-
-## Relationship Overview
-
-```mermaid
-erDiagram
-    DOCUMENT {
-        string id PK
-        string drive_file_id UK
-        string status
-        string local_path
-        string raw_text_path
-        json extracted_data
-        json corrected_data
-        boolean is_duplicate_suspected
-        boolean exported_to_excel
-    }
-    EXCLUSION_ENTRY {
-        string drive_file_id
-        datetime excluded_at
-    }
-    CORRECTION_ENTRY {
-        string field_name
-        string extracted_value
-        string corrected_value
-    }
-    EXCEL_ROW {
-        string source_reference
-        string effective_invoice_fields
-    }
-
-    DOCUMENT ||--o| EXCLUSION_ENTRY : "may exclude by Drive ID"
-    DOCUMENT ||--o{ CORRECTION_ENTRY : "may contribute corrections"
-    DOCUMENT ||--o| EXCEL_ROW : "may export"
-    DOCUMENT }o--o{ DOCUMENT : "suspected duplicate by Drive ID"
-```
-
-The auxiliary JSON structures are not formal database entities and do not have enforced foreign keys.
-
-## Current Data Model Weaknesses
-
-These are known current-state findings:
-
-- Status values and rules are duplicated across model comments, UI label/filter definitions, workers, and services.
-- There is no central transition graph or transition validator.
-- There is no schema migration framework.
-- The document store writes a version value but does not validate or migrate it.
-- There is no audit-event entity for lifecycle transitions.
-- There is no explicit currency field.
-- Lifecycle timestamps are limited to create/update and irrelevant confirmation.
-- Duplicate links use Drive IDs rather than the local UUID.
-- Correction mappings are global, so a substitution learned in one context can affect unrelated documents.
-
-Storage and workflow changes remain open decisions in the [Roadmap](ROADMAP.md) and [ADR index](decisions/README.md).
+- There is no relational database or migration framework.
+- Atomic replacement protects individual JSON writes but is not a backup plan.
+- Runtime state remains repository-relative/local rather than platform-managed
+  application data.
+- Legacy and Panda 2.0 paths still share parts of the same model.

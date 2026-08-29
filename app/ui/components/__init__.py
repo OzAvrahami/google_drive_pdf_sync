@@ -1,4 +1,4 @@
-"""Panda 2.0 QWidget primitives; not wired into the legacy shell yet."""
+"""Reusable Panda 2.0 QWidget primitives."""
 
 from app.ui.components.badges import AuxiliaryBadgeVariant, StatusBadge
 from app.ui.components.buttons import ButtonVariant, PandaButton, PandaIconButton

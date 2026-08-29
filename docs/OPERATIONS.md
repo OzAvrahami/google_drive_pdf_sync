@@ -1,111 +1,109 @@
 # Panda Operations
 
-This document describes the current repository-local desktop installation. Panda does not currently provide an installer, managed deployment, automated backup, or restore command.
+Panda 2.0.0 is a source-only local desktop application. It does not currently
+provide an installer, managed deployment, automatic backup, or restore command.
 
-## Local Configuration
+## Configuration
 
-`app/config.py` loads a repository-root `.env`. Supported environment-variable names are:
+Create a local `.env` from `.env.example` and configure:
 
 ```text
 GOOGLE_DRIVE_PARENT_FOLDER_ID
 GOOGLE_SERVICE_ACCOUNT_FILE
 ```
 
-- `GOOGLE_DRIVE_PARENT_FOLDER_ID` identifies the remote parent hierarchy to scan.
-- `GOOGLE_SERVICE_ACCOUNT_FILE` points to a local service-account JSON file. A relative path is resolved against the repository root.
+The Drive folder must be accessible to the service account. Panda uses a
+read-only Drive scope. `.env` and the credential JSON are ignored and must remain
+local.
 
-`.env` and real credential files are local-only and ignored. Use `.env.example` as a names-only template; never commit real values.
+## Running
 
-## Google Drive Requirements
+Panda 2.0 shell:
 
-- A Google Cloud service account with access to the intended Drive folder.
-- A local service-account JSON credential file.
-- The Drive API dependencies declared in `requirements.txt`.
-- Network access to Google Drive APIs.
-- The configured parent folder shared with or otherwise accessible to the service account.
+```powershell
+python run.py --panda2
+```
 
-`app/clients/drive_client.py:get_drive_service()` authenticates and uses a read-only Drive scope. Panda recursively lists folders and PDF MIME-type entries beneath the configured parent.
-
-## Running the Current Application
-
-From the repository root:
+Legacy desktop and CLI compatibility paths:
 
 ```powershell
 python run.py
-```
-
-The legacy CLI remains available separately:
-
-```powershell
 python -m app.main
 ```
 
-It uses a different state model and should not be treated as equivalent to the desktop workflow. See [Architecture](ARCHITECTURE.md#legacy-cli).
+The legacy paths are not equivalent to the Panda 2.0 presentation contract.
 
-## Runtime Directories
+## Runtime Locations
 
-`app/config.py` defines all active paths relative to the repository root:
+`app/config.py` defines repository-relative local paths:
 
-| Current path | Purpose |
+| Path | Purpose |
 | --- | --- |
-| `data/documents.json` | Active desktop document records. |
-| `data/downloads/` | Downloaded PDFs arranged from Drive-derived folder/file names. |
-| `data/text/` | Extracted text files named by Drive ID. |
-| `data/corrections_log.json` | Manual correction history. |
-| `data/correction_map.json` | Global correction substitutions. |
-| `data/learned_rules.json` | Learned parser rules. |
-| `data/supplier_rules.json` | Learned supplier validation rules. |
-| `data/excluded_files.json` | Permanent Drive-ID exclusions. |
-| `data/output/invoices.xlsx` | Current Excel export. |
-| `data/state/sync_state.json` | Legacy CLI synchronization state. |
-| `data/processed/` | Configured local runtime directory; not the active document-record store. |
-| `data/failed/` | Configured local runtime directory; failures are primarily represented in document JSON. |
+| `data/documents.json` | Versioned operational document store |
+| `data/downloads/` | Contained downloaded PDF hierarchy |
+| `data/text/` | Extracted text by Drive ID |
+| `data/corrections_log.json` | Correction history |
+| `data/correction_map.json` | Correction substitutions |
+| `data/learned_rules.json` | Learned parser rules |
+| `data/supplier_rules.json` | Supplier validation rules |
+| `data/excluded_files.json` | Drive-ID exclusion registry |
+| `data/output/invoices.xlsx` | Default Excel export |
+| `data/state/sync_state.json` | Legacy CLI state |
 
-`data/settings.json` is also defined, but there is no formal settings UI in the active application.
+These paths contain operational data and are ignored. Moving them to a
+platform-managed application-data location remains future work.
 
-These locations are current implementation facts. Moving them to a platform application-data location is an unresolved Panda 2.0 architecture decision.
+## Private PDF Corpus
+
+The developer corpus lives below `tests/fixtures/pdf/` but is local-only. New
+documents enter through `_incoming/`; the batch diagnostic can register and
+organize them by evidence-based source detection. Human review writes the local
+manifest atomically.
+
+See [PDF Corpus Workflow](pdf-corpus-workflow.md) for commands and privacy rules.
 
 ## Backup
 
-Before significant application, parser, persistence, or runtime-layout changes, make a protected copy of:
+Before application, parser, persistence, or runtime-layout changes, protect a
+copy of:
 
-- the complete `data/` tree, including downloaded PDFs, extracted text, JSON stores, exclusion state, legacy state, and generated workbook;
-- the local `.env`;
-- the local Google service-account credential file;
-- any Excel workbook stored outside the configured default location.
+- the complete `data/` tree;
+- `.env` and the service-account credential;
+- workbooks stored outside the default path; and
+- the private PDF corpus and reviewed manifest when needed for development.
 
-Backups can contain sensitive accounting and credential material. Store them with appropriate access control and do not add them to Git.
+Backups remain sensitive and must not be added to Git. Verify a backup before
+performing migration work.
 
-The current application does **not** create these backups automatically. A backup should be verified independently before migration work starts.
+## Recovery and Compatibility
 
-## Recovery Limitations
+`DocumentStore` accepts only schema version `2` and fails closed for malformed,
+invalid, duplicate-ID, or unsupported-version data. It does not silently replace
+an invalid existing store with an empty one. Writes use temporary-file
+replacement.
 
-The current implementation has no:
+Panda still has no schema migration tool, point-in-time recovery, transaction
+log, or automatic rollback. Preserve the affected files and stop writing if
+corruption is suspected. Application version `2.0.0` does not change the store
+schema version automatically.
 
-- formal backup/restore tooling;
-- transaction log or audit-event log;
-- schema migration tooling;
-- point-in-time recovery;
-- automatic rollback;
-- validation that a store version is compatible before loading;
-- safe recovery workflow for corrupt JSON or an unreadable workbook.
+## Testing and Release Verification
 
-Some readers return empty/default state after an error. Operators should stop and preserve the affected files rather than continue writing when corruption is suspected.
+```powershell
+python -B -m pytest
+python -B scripts/diagnose_pdf_batch.py "tests/fixtures/pdf"
+```
+
+The batch command requires the private local corpus for its full reviewed
+accuracy result. A clean clone retains synthetic coverage and skips unavailable
+private-real-PDF tests explicitly.
 
 ## Logs and Troubleshooting
 
-`run.py` configures INFO logging to the process console. Worker/service exceptions are logged and generally surfaced through UI dialogs; there is no dedicated log file configured by the application. Console output may contain sensitive filenames, paths, values, and exception details.
+`run.py` logs to the process console. Treat console output as potentially
+sensitive because it may include filenames, paths, field values, and exception
+details.
 
-Common setup failures include:
-
-- Python or dependencies unavailable;
-- missing/empty Drive folder configuration;
-- missing, unreadable, or unauthorized service-account file;
-- Drive folder not shared with the service account;
-- network/API failure;
-- inaccessible runtime directories or output workbook;
-- source PDF unavailable or unreadable.
-
-## Before Panda 2.0 Persistence Changes
-
-Operational data must be backed up before any future migration that changes persistence schema, JSON structure, runtime paths, exclusion behavior, or workbook handling. A migration plan should include validation, a dry run against a copy, rollback instructions, and regression checks. Current risks are documented in [Security and Privacy](SECURITY_AND_PRIVACY.md) and planned foundation work in the [Roadmap](ROADMAP.md).
+Common failures include missing dependencies/configuration, inaccessible Drive
+folders or credentials, network/API errors, unreadable source PDFs, invalid
+runtime-store data, locked manifests/workbooks, and inaccessible output paths.

@@ -1,129 +1,123 @@
-# Panda — Current State
+# Panda - Current State
 
-This document is the authoritative factual snapshot of the implemented Panda application at the start of Panda 2.0 planning. Planned work is kept in the [Roadmap](ROADMAP.md); it is not described here as current behavior.
+This document describes the implemented Panda 2.0 application at release
+version **2.0.0**. Future work is tracked separately in the
+[Roadmap](ROADMAP.md).
 
 ## Product Status
 
-Panda is currently a local, single-user desktop accounting-document processing application. Its primary UI is Hebrew-first and application-wide right-to-left (RTL), implemented with Python and PySide6/Qt.
+Panda is an active, internal, single-user desktop application for Hebrew-first
+accounting-document processing. It is implemented with Python and PySide6/Qt,
+uses Google Drive as its remote PDF source, and stores operational state and
+artifacts on the local filesystem.
 
-The active execution model is:
+The Panda 2.0 shell currently starts with:
 
-1. The user starts `run.py`.
-2. Panda reads local configuration and JSON persistence.
-3. Explicit user actions start background Qt workers for Drive scanning, document processing, retries, or export.
-4. Google Drive is used as a remote PDF source through a service account.
-5. All application records and artifacts remain on the local filesystem.
-6. Approved data is written to an Excel workbook.
+```powershell
+python run.py --panda2
+```
 
-There is no application server, database, multi-user service, or web client. See [Product Flows](PRODUCT_FLOWS.md) for the traced workflows and [Architecture](ARCHITECTURE.md) for component boundaries.
+The legacy desktop shell remains the no-flag startup path until startup
+consolidation is decided. The older CLI also remains available. These legacy
+paths do not change Panda 2.0's formal application version.
 
-## Current Capabilities
+## Panda 2.0 Workspace
 
-The current implementation supports:
+The implemented shell provides:
 
-- recursive discovery of PDFs below a configured Google Drive parent folder;
-- filtering of entries recorded in the local exclusion registry;
-- local PDF download;
-- PDF text extraction with pdfplumber and RTL-text normalization;
-- local storage of extracted text;
-- document classification, including automatically skipped document types;
-- invoice field parsing for document type, supplier, date, document number, subtotal, VAT, total, and description;
-- supplier matching, validation, learned supplier rules, and fallbacks;
-- confidence scoring and routing to automatic processing or manual attention;
-- review and correction of extracted fields and status;
-- correction logging, correction mapping, and learned parsing rules;
-- duplicate suspicion using exact and high-confidence comparisons;
-- manual duplicate confirmation or dismissal;
-- approval;
-- confirmed-irrelevant handling and an exclusion registry;
-- retry of a single document and bulk reprocessing;
-- Excel export of approved records;
-- local exported-document history; and
-- background execution through Qt worker threads with progress reporting.
+- an operational Overview;
+- Inbox, Needs Attention, Ready, Irrelevant, and History queues;
+- queue counts, search, filters, stable selection, and status presentation;
+- an integrated document workspace with source PDF preview and page navigation;
+- editable extracted fields with unsaved-change protection;
+- previous/next document navigation;
+- save, approval, duplicate-resolution, and irrelevant-document actions;
+- selected/batch approval and Excel-export actions in Ready; and
+- background task feedback through the Task Dock and Task Center.
 
-## Current Views
+The application uses a central queue policy to map each document to one primary
+navigation destination. Duplicate suspicion is surfaced through Needs Attention.
 
-The main shell in `app/ui/main_window.py` contains these views:
+## Processing Pipeline
 
-- **Dashboard** — summary cards and recent-document presentation.
-- **New Documents** — records awaiting processing.
-- **Needs Attention** — review, failure, skipped, and duplicate-focused queues with filters.
-- **Processed / Pending** — processed, corrected, and approved records with filters.
-- **Irrelevant** — confirmed-irrelevant and legacy-excluded records.
-- **History** — exported records.
+The implemented production path is:
 
-Supporting dialogs include:
+1. Discover PDF files recursively below the configured Google Drive folder.
+2. Download each source into a contained local path.
+3. Extract native text with pdfplumber.
+4. Normalize Hebrew/RTL text while preserving meaningful mixed LTR tokens.
+5. Classify document type and skip excluded receipt/combined-receipt policies.
+6. Parse supplier, document date, document number, and payable amount.
+7. Optionally apply the narrowly gated positional supplier resolver for the
+   validated two-column customer/issuer ambiguity.
+8. Validate the supplier and calculate confidence.
+9. Route the record to processed, needs-review, skipped, or failed state.
+10. Detect duplicate candidates and persist the result.
 
-- **Review / Correction Dialog** in `app/ui/review_dialog.py`;
-- **Progress Dialog** in `app/ui/progress_dialog.py`;
-- confirmations for irrelevant classification and duplicate resolution; and
-- export-result, informational, warning, and error message boxes.
+The parser is designed for native digital PDFs. OCR is not implemented. An
+image-only or otherwise non-native PDF remains a needs-review document rather
+than being presented as a native-parser regression.
 
-The detailed inventory is in [UI Inventory](UI_INVENTORY.md).
+## Native PDF Accuracy State
 
-## Current Persistence
+Panda includes tracked synthetic regression coverage and optional private
+real-PDF regressions. The private corpus itself is not part of Git.
 
-Panda stores data only in local JSON files and filesystem artifacts:
+At 2.0.0 release preparation, local/private verification reported:
 
-- document records;
-- downloaded source PDFs;
-- extracted text files;
-- correction logs and mappings;
-- learned parsing and supplier rules;
-- an excluded-file registry;
-- legacy CLI state;
-- and generated Excel workbooks.
+- 42 reviewed unique identities;
+- 42/42 correct supplier, date, document number, and amount fields;
+- 112 unique local identities, including 111 native digital PDFs and 1
+  non-native PDF;
+- 98 processed and 13 skipped by policy among native documents; and
+- the non-native document remaining in needs-review without OCR.
 
-`app/services/document_store.py` owns the active document JSON store. There is no relational database, server-side persistence, transaction log, or migration framework. Runtime files are operational data and are intentionally excluded from Git. See [Data Model](DATA_MODEL.md) and [Operations](OPERATIONS.md).
+These figures are local human-verification evidence, not clean-clone or CI data.
+Operational processing status, field presence, reviewed accuracy, and fully
+correct documents remain separate measurements.
 
-## Current Dataset Scale
+## Developer PDF Benchmark
 
-The repository audit examined Panda against an active local working dataset containing hundreds of document records. No operational filenames, supplier identities, invoice values, amounts, or document contents are reproduced in this documentation.
+The developer-only PDF Benchmark is available from the Panda 2.0 secondary
+tools entry. It reuses the production extraction/parser and existing PDF preview
+while providing:
 
-## Known Product Limitations
+- SHA-256-based corpus identity and duplicate handling;
+- source-system and native-text diagnostics;
+- reviewed/unreviewed, mismatch, source, status, and confidence filters;
+- editable human Ground Truth fields;
+- Everything Correct and Save & Next workflows;
+- reviewed progress and field/fully-correct accuracy; and
+- atomic manifest persistence with actionable locked-file errors.
 
-These are confirmed characteristics of the current implementation, not Panda 2.0 features:
+The same corpus and review behavior is shared with the CLI through
+`app/services/pdf_corpus_service.py`.
 
-- Review is modal and one document at a time.
-- Source PDFs open in an external application, requiring context switching.
-- There is no batch-approval action.
-- Duplicate resolution has no integrated side-by-side comparison.
-- The progress dialog cannot be cancelled.
-- Searching and refreshing rebuilds the complete visible table.
-- Numeric amounts and confidence values are displayed and sorted as formatted strings.
-- There is no formal settings UI.
-- There is no OCR fallback for image-only PDFs.
-- There is no packaging or installer.
-- There is no application-versioning system.
-- The legacy CLI overlaps with the active architecture.
-- There is no dedicated application keyboard workflow.
+## Persistence and Export
 
-## Known Reliability / Correctness Issues
+`DocumentStore` is the operational source of truth. It writes schema version
+`CURRENT_STORE_VERSION = 2`, validates the top-level shape and exact supported
+schema version while loading, rejects corrupt/unsupported stores, and writes
+atomically through a temporary file and replacement.
 
-The following findings are documented for later remediation. No fix is implied.
+Application release version `2.0.0` and document-store schema version `2` are
+independent contracts. No automatic store migration framework exists.
 
-### Changed Drive File Handling
+Other local state includes downloaded PDFs, extracted text, correction maps,
+learned supplier rules, exclusion data, and generated Excel workbooks. Runtime
+and private corpus data are intentionally excluded from Git.
 
-`app/services/drive_sync_service.py` can detect a changed Drive file and requeue its record. During processing, `app/services/processing_service.py` may reuse an already-present local PDF instead of downloading the changed remote bytes. The record can therefore be reprocessed from stale local content.
+## Current Boundaries and Limitations
 
-### Workflow State Enforcement
+- Panda is local and single-user; there is no server, database, or web client.
+- There is no OCR path for scanned/image-only PDFs.
+- There is no packaged installer or binary distribution.
+- The private corpus and Ground Truth are unavailable in clean clones and CI.
+- The legacy shell and CLI still coexist with Panda 2.0.
+- Document-store version compatibility is validated, but migrations are not
+  implemented.
+- Backup/recovery policy and broader release automation remain future work.
+- No document content is sent to AI/LLM parsing or telemetry services.
 
-Workflow transitions are distributed among `app/ui/main_window.py`, `app/ui/review_dialog.py`, `app/ui/workers.py`, `app/services/processing_service.py`, and related services. No single component validates a central transition graph, and manual status editing can bypass intended sequences.
-
-### Document Store Recovery
-
-`DocumentStore` in `app/services/document_store.py` catches failures while loading the document JSON and can continue with an empty in-memory store. A subsequent save could overwrite the only persisted record set, creating a data-loss risk.
-
-### Excel Recovery
-
-`app/writers/excel_writer.py` can treat an unreadable existing workbook as an empty workbook and continue. A later write can replace data that was present but could not be read.
-
-### Schema Evolution
-
-The document store writes a version field, but `DocumentStore` does not validate it or apply formal migrations. Compatibility across future schema changes is not guaranteed.
-
-## Current, Known, and Planned Boundaries
-
-- **Current implementation:** everything under Product Status, Current Capabilities, Views, and Persistence above.
-- **Known issues and debt:** the limitations and reliability findings above.
-- **Planned or proposed Panda 2.0 direction:** only the items explicitly marked planned or open in the [Roadmap](ROADMAP.md) and [Decision Records](decisions/README.md).
+See [Architecture](ARCHITECTURE.md), [Product Flows](PRODUCT_FLOWS.md), and
+[Testing](TESTING.md) for the current implementation boundaries.

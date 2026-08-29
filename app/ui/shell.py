@@ -1,4 +1,4 @@
-"""Panda 2.0 application shell, available through the development selector."""
+"""Panda 2.0 application shell, selected with the explicit startup flag."""
 
 from __future__ import annotations
 

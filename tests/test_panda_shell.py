@@ -23,6 +23,7 @@ from app.ui.theme.icons import icon_for
 from app.ui.theme.tokens import LAYOUT
 from app.ui.views.document_queue import DocumentQueueView
 from app.ui.views.ready import ReadyView
+from app.version import APP_VERSION
 
 
 @pytest.fixture(scope="module")
@@ -323,6 +324,9 @@ def test_run_selects_panda2_only_with_explicit_flag() -> None:
     assert result == 0
     panda_window.assert_called_once_with(source, export_enabled=True)
     legacy_window.assert_not_called()
+    application_class.return_value.setApplicationVersion.assert_called_once_with(
+        APP_VERSION
+    )
     application_class.return_value.setStyleSheet.assert_not_called()
 
 

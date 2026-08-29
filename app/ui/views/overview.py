@@ -1,4 +1,4 @@
-"""Operational Overview for the Panda 2.0 development shell."""
+"""Operational Overview for the Panda 2.0 application shell."""
 
 from __future__ import annotations
 

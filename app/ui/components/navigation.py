@@ -23,6 +23,7 @@ from app.ui.theme.icons import IconName
 from app.ui.theme.stylesheet import repolish, set_dynamic_property
 from app.ui.theme.tokens import LAYOUT, SPACING
 from app.ui.theme.typography import TypographyRole, apply_typography
+from app.version import APP_VERSION
 
 
 class NavigationButton(QPushButton):
@@ -154,7 +155,8 @@ class NavigationRail(QFrame):
         name = QLabel("Panda")
         name.setProperty("pandaComponent", "brandName")
         apply_typography(name, TypographyRole.SECTION_TITLE)
-        version = QLabel("2.0")
+        version = QLabel(APP_VERSION)
+        version.setObjectName("applicationVersion")
         version.setProperty("pandaComponent", "brandVersion")
         version.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
         apply_typography(version, TypographyRole.TECHNICAL)
