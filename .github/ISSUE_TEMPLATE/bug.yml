@@ -1,0 +1,59 @@
+name: Bug
+description: Report incorrect existing behavior
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the incorrect behavior and its impact.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest reliable sequence that reproduces the problem.
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Explain what should have happened instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or evidence
+      description: Add screenshots, logs, or other evidence when relevant. Remove private document data first.
+
+  - type: input
+    id: component
+    attributes:
+      label: Page or component
+      description: Name the Panda page, queue, parser, service, or tool involved.
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Note the operating system, Python version, and other context needed to investigate.
+    validations:
+      required: true
+
+  - type: textarea
+    id: possible-cause
+    attributes:
+      label: Possible cause
+      description: Optionally share a suspected cause or useful implementation lead.

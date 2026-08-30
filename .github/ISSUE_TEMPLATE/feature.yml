@@ -1,0 +1,41 @@
+name: Feature
+description: Propose a new capability
+title: "[Feature]: "
+labels:
+  - feature
+body:
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Problem or motivation
+      description: Describe the user problem or opportunity this capability should address.
+    validations:
+      required: true
+
+  - type: textarea
+    id: capability
+    attributes:
+      label: Proposed capability
+      description: Explain the new capability without prescribing unnecessary implementation detail.
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Expected outcome
+      description: Describe what should become possible or meaningfully easier.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance notes
+      description: List the essential behavior or boundaries that would make the feature complete.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add relevant examples, references, constraints, or alternatives without private document data.

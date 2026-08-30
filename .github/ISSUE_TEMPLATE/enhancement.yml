@@ -1,0 +1,35 @@
+name: Enhancement
+description: Improve existing behavior
+title: "[Enhancement]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behavior
+      description: Describe how the existing behavior works today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: improvement
+    attributes:
+      label: Desired improvement
+      description: Explain how the existing behavior should improve.
+    validations:
+      required: true
+
+  - type: textarea
+    id: value
+    attributes:
+      label: Why it matters
+      description: Describe the user or product value of the improvement.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance notes
+      description: List the essential behavior or boundaries that would make the enhancement complete.
